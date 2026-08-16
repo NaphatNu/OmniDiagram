@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: omnidiagram-backend
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:omnidiagram}
+    username: ${POSTGRES_USER:omnidiagram}
+    password: ${POSTGRES_PASSWORD:omnidiagram}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+  ai:
+    mcp:
+      server:
+        name: omnidiagram-mcp-server
+        version: 0.1.0
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
