@@ -5,3 +5,7 @@ OmniDiagram is self-hosted on a homeserver for primarily solo use, with occasion
 ## Consequences
 
 Anyone who obtains a Diagram's link — including by it leaking outside the trusted network — can edit or delete it. Adding accounts later means retrofitting ownership onto every existing Diagram.
+
+## Amendment (superseded assumption)
+
+The premise that "the network boundary (VPN/LAN) already provides the trust boundary" no longer holds: the app is published on the public internet at `omnidiagram.tonkla.studio`. The decision itself stands — OmniDiagram still has no accounts, sessions, or permission tiers — but the trust boundary now sits at Cloudflare Access rather than the LAN, and delete is no longer reachable by everyone holding a link. See [ADR-0010](./0010-cloudflare-access-guards-dashboard-only.md).

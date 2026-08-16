@@ -21,5 +21,9 @@ The sole access mechanism for a Diagram. Possessing the link is sufficient to vi
 _Avoid_: Share URL, invite link
 
 **Revision**:
-A snapshot of a Diagram's content captured on every save, kept so an edit — human or AI agent — can be reverted.
+A snapshot of a Diagram's content *and* layout captured on every save, kept so an edit — human or AI agent — can be reverted. Saves are explicit (a Save button), not autosave, so revisions stay coarse enough to be worth reverting to.
 _Avoid_: Version, History entry
+
+**Layout**:
+Where each SchemaDiagram table sits on the canvas, stored separately from the DBML content because DBML has no field for position (see [ADR-0011](./docs/adr/0011-table-layout-stored-outside-dbml-content.md)). GenericDiagrams have no Layout — Mermaid auto-lays-out.
+_Avoid_: Positions, Coordinates

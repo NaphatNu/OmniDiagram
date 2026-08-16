@@ -1,8 +1,10 @@
 services:
   caddy:
     image: caddy:2-alpine
+    # 8090, not 80: ports 80/3000/8080 are already taken on kla-server.
+    # The Cloudflare Tunnel (host network) reaches this at localhost:8090.
     ports:
-      - "80:80"
+      - "8090:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
@@ -13,12 +15,15 @@ services:
     restart: unless-stopped
 
   frontend:
+    image: ghcr.io/naphatnu/omnidiagram-frontend:${IMAGE_TAG:-latest}
     build: ./frontend
     restart: unless-stopped
 
   backend:
+    image: ghcr.io/naphatnu/omnidiagram-backend:${IMAGE_TAG:-latest}
     build: ./backend
     environment:
+      FRONTEND_INTERNAL_URL: http://frontend:3000
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}

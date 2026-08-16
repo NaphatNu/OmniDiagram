@@ -22,7 +22,7 @@ Returns: `{ id, title, kind, content, updatedAt }`
 
 - `kind`: `"SchemaDiagram" | "GenericDiagram"`
 - `content`: text
-- `format`: required when `kind = SchemaDiagram` — `"dbml" | "sql"`. SQL input is converted to DBML server-side before storage (DBML is always the stored form). Ignored for `GenericDiagram` (always Mermaid).
+- `format`: required when `kind = SchemaDiagram` — `"dbml" | "sql"`. SQL input is converted to DBML before storage (DBML is always the stored form) via the conversion service in the Next.js app — see [ADR-0009](./adr/0009-dbml-sql-conversion-lives-in-nextjs.md). Ignored for `GenericDiagram` (always Mermaid).
 
 Returns the created Diagram (same shape as `get_diagram`).
 
@@ -35,10 +35,14 @@ Last-write-wins: no revision/version check, no conflict error. Every call still 
 ## `export_diagram(id, format)`
 
 `format` depends on `kind`:
-- SchemaDiagram: `"dbml" | "sql-postgres" | "sql-mysql" | "sql-sqlserver" | "sql-sqlite" | "png" | "svg"`
-- GenericDiagram: `"svg"`
+- SchemaDiagram: `"dbml" | "sql-postgres" | "sql-mysql" | "sql-sqlserver" | "sql-sqlite"`
+- GenericDiagram: `"mermaid"`
 
-Always returns content inline in the response — text formats as plain text, `png` as base64. No download URLs.
+Always returns content inline in the response as plain text. No download URLs.
+
+**Text only.** Image formats (`png`, `svg`) are deliberately absent: both SchemaDiagram (react-flow) and GenericDiagram (Mermaid) need a real DOM to render, so serving them from MCP would mean running headless Chrome in the backend. Image export is a UI feature instead — the browser has already rendered the diagram, so it exports client-side at no extra cost.
+
+SQL formats are produced via the conversion service in the Next.js app (see [ADR-0009](./adr/0009-dbml-sql-conversion-lives-in-nextjs.md)).
 
 ## No `delete_diagram`
 

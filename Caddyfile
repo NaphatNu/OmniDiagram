@@ -1,4 +1,9 @@
 :80 {
+	# Backend-internal conversion routes must never be reachable from outside.
+	handle /api/internal/* {
+		respond 404
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8080
 	}
