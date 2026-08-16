@@ -2,15 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { formatUpdatedAt } from "@/lib/format";
 import { Diagram } from "@/lib/types";
 import { KindBadge } from "./KindBadge";
-
-function formatUpdatedAt(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export function DiagramRow({ diagram }: { diagram: Diagram }) {
   const [deleted, setDeleted] = useState(false);
