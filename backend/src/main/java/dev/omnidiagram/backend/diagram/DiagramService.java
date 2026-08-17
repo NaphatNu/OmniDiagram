@@ -63,6 +63,26 @@ public class DiagramService {
 		diagramRepository.deleteById(id);
 	}
 
+	@Transactional(readOnly = true)
+	public List<Revision> listRevisions(UUID diagramId) {
+		return revisionRepository.findAllByDiagramIdOrderByCreatedAtDesc(diagramId);
+	}
+
+	public Diagram revertTo(UUID diagramId, UUID revisionId) {
+		Diagram diagram = findDiagram(diagramId);
+		Revision revision = revisionRepository.findById(revisionId)
+				.filter(candidate -> candidate.getDiagramId().equals(diagramId))
+				.orElseThrow(() -> new DiagramNotFoundException(revisionId));
+
+		revisionRepository.save(new Revision(diagram.getId(), diagram.getContent(), diagram.getLayout()));
+
+		diagram.setContent(revision.getContent());
+		diagram.setLayout(revision.getLayout());
+		diagram.setUpdatedAt(Instant.now());
+
+		return diagramRepository.save(diagram);
+	}
+
 	private Diagram findDiagram(UUID id) {
 		return diagramRepository.findById(id).orElseThrow(() -> new DiagramNotFoundException(id));
 	}
