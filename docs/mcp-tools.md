@@ -35,10 +35,12 @@ Last-write-wins: no revision/version check, no conflict error. A new Revision sn
 ## `export_diagram(id, format)`
 
 `format` depends on `kind`:
-- SchemaDiagram: `"dbml" | "sql-postgres" | "sql-mysql" | "sql-sqlserver" | "sql-sqlite"`
+- SchemaDiagram: `"dbml" | "sql-postgres" | "sql-mysql" | "sql-sqlserver"`
 - GenericDiagram: `"mermaid"`
 
 Always returns content inline in the response as plain text. No download URLs.
+
+`sql-sqlite` is deliberately absent: `@dbml/core`, the library that implements the conversion (see below), silently returns an empty string for the `sqlite` dialect on both import and export instead of converting or erroring, in every published version through 10.1.1. It is not a usable dialect, so `create_diagram`/`update_diagram`/`export_diagram` only accept SQL for postgres, mysql, and mssql.
 
 **Text only.** Image formats (`png`, `svg`) are deliberately absent: both SchemaDiagram (react-flow) and GenericDiagram (Mermaid) need a real DOM to render, so serving them from MCP would mean running headless Chrome in the backend. Image export is a UI feature instead — the browser has already rendered the diagram, so it exports client-side at no extra cost.
 
