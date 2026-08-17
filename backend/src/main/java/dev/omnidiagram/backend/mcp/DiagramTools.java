@@ -1,10 +1,12 @@
 package dev.omnidiagram.backend.mcp;
 
+import dev.omnidiagram.backend.conversion.DbmlConversionClient;
 import dev.omnidiagram.backend.diagram.Diagram;
 import dev.omnidiagram.backend.diagram.DiagramKind;
 import dev.omnidiagram.backend.diagram.DiagramService;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -15,10 +17,20 @@ public class DiagramTools {
 
 	private static final String DEFAULT_TITLE = "Untitled diagram";
 
-	private final DiagramService diagramService;
+	/**
+	 * Public MCP format names for SQL, mapped to the dialect names the conversion
+	 * service (and @dbml/core underneath it) expects. Used for both import
+	 * (create_diagram/update_diagram) and export.
+	 */
+	private static final Map<String, String> SQL_FORMAT_DIALECTS = Map.of("sql-postgres", "postgres", "sql-mysql",
+			"mysql", "sql-sqlserver", "mssql");
 
-	public DiagramTools(DiagramService diagramService) {
+	private final DiagramService diagramService;
+	private final DbmlConversionClient dbmlConversionClient;
+
+	public DiagramTools(DiagramService diagramService, DbmlConversionClient dbmlConversionClient) {
 		this.diagramService = diagramService;
+		this.dbmlConversionClient = dbmlConversionClient;
 	}
 
 	@Tool(name = "list_diagrams", description = "List every Diagram, no pagination or filtering")
@@ -36,7 +48,8 @@ public class DiagramTools {
 			@ToolParam(description = "SchemaDiagram or GenericDiagram") DiagramKind kind,
 			@ToolParam(description = "Diagram title", required = false) String title,
 			@ToolParam(description = "DBML source for SchemaDiagram, Mermaid source for GenericDiagram") String content,
-			@ToolParam(description = "Required for SchemaDiagram: 'dbml' or 'sql'. Ignored for GenericDiagram.",
+			@ToolParam(
+					description = "Required for SchemaDiagram: 'dbml', 'sql-postgres', 'sql-mysql', or 'sql-sqlserver'. Ignored for GenericDiagram.",
 					required = false) String format) {
 		String resolvedContent = resolveInboundContent(kind, content, format);
 		String resolvedTitle = (title == null || title.isBlank()) ? DEFAULT_TITLE : title;
@@ -48,7 +61,8 @@ public class DiagramTools {
 			@ToolParam(description = "Internal Diagram id") UUID id,
 			@ToolParam(description = "New title", required = false) String title,
 			@ToolParam(description = "New content", required = false) String content,
-			@ToolParam(description = "Required when content is set for a SchemaDiagram: 'dbml' or 'sql'",
+			@ToolParam(
+					description = "Required when content is set for a SchemaDiagram: 'dbml', 'sql-postgres', 'sql-mysql', or 'sql-sqlserver'",
 					required = false) String format) {
 		String resolvedContent = content;
 		if (content != null) {
@@ -61,7 +75,7 @@ public class DiagramTools {
 	@Tool(name = "export_diagram", description = "Export a Diagram's content as plain text")
 	public String exportDiagram(
 			@ToolParam(description = "Internal Diagram id") UUID id,
-			@ToolParam(description = "dbml/sql-postgres/sql-mysql/sql-sqlserver/sql-sqlite for SchemaDiagram, "
+			@ToolParam(description = "dbml/sql-postgres/sql-mysql/sql-sqlserver for SchemaDiagram, "
 					+ "mermaid for GenericDiagram") String format) {
 		Diagram diagram = diagramService.getById(id);
 		return switch (diagram.getKind()) {
@@ -77,22 +91,25 @@ public class DiagramTools {
 		if (format == null) {
 			throw new IllegalArgumentException("format is required for SchemaDiagram");
 		}
-		if (format.equals("sql")) {
-			throw new IllegalArgumentException("SQL import is not yet implemented");
+		if (format.equals("dbml")) {
+			return content;
 		}
-		if (!format.equals("dbml")) {
+		String dialect = SQL_FORMAT_DIALECTS.get(format);
+		if (dialect == null) {
 			throw new IllegalArgumentException("Unsupported format: " + format);
 		}
-		return content;
+		return dbmlConversionClient.sqlToDbml(content, dialect);
 	}
 
 	private String exportSchemaDiagram(Diagram diagram, String format) {
-		return switch (format) {
-			case "dbml" -> diagram.getContent();
-			case "sql-postgres", "sql-mysql", "sql-sqlserver", "sql-sqlite" ->
-					throw new IllegalArgumentException("SQL export is not yet implemented");
-			default -> throw new IllegalArgumentException("Unsupported format for SchemaDiagram: " + format);
-		};
+		if (format.equals("dbml")) {
+			return diagram.getContent();
+		}
+		String dialect = SQL_FORMAT_DIALECTS.get(format);
+		if (dialect == null) {
+			throw new IllegalArgumentException("Unsupported format for SchemaDiagram: " + format);
+		}
+		return dbmlConversionClient.dbmlToSql(diagram.getContent(), dialect);
 	}
 
 	private String exportGenericDiagram(Diagram diagram, String format) {

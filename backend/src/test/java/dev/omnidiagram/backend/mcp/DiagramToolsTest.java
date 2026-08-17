@@ -2,8 +2,15 @@ package dev.omnidiagram.backend.mcp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import dev.omnidiagram.backend.AbstractIntegrationTest;
+import dev.omnidiagram.backend.conversion.ConversionException;
+import dev.omnidiagram.backend.conversion.DbmlConversionClient;
 import dev.omnidiagram.backend.diagram.Diagram;
 import dev.omnidiagram.backend.diagram.DiagramKind;
 import dev.omnidiagram.backend.diagram.DiagramService;
@@ -13,6 +20,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 class DiagramToolsTest extends AbstractIntegrationTest {
 
@@ -24,6 +32,9 @@ class DiagramToolsTest extends AbstractIntegrationTest {
 
 	@Autowired
 	private ToolCallbackProvider toolCallbackProvider;
+
+	@MockitoBean
+	private DbmlConversionClient dbmlConversionClient;
 
 	@Test
 	void listDiagramsReturnsEveryDiagramWithItsId() {
@@ -126,6 +137,77 @@ class DiagramToolsTest extends AbstractIntegrationTest {
 				.isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> diagramTools.exportDiagram(genericDiagram.getId(), "dbml"))
 				.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void createDiagramWithFormatSqlPostgresStoresDbmlNotTheSubmittedSql() {
+		when(dbmlConversionClient.sqlToDbml("CREATE TABLE orders (id INT);", "postgres"))
+			.thenReturn("Table orders { id integer }");
+
+		DiagramTools.DiagramToolResult result = diagramTools.createDiagram(DiagramKind.SchemaDiagram, "Orders",
+				"CREATE TABLE orders (id INT);", "sql-postgres");
+
+		assertThat(result.content()).isEqualTo("Table orders { id integer }");
+		verify(dbmlConversionClient).sqlToDbml("CREATE TABLE orders (id INT);", "postgres");
+	}
+
+	@Test
+	void aFailedConversionDuringCreateDiagramCreatesNoDiagram() {
+		long countBefore = diagramTools.listDiagrams().size();
+		when(dbmlConversionClient.sqlToDbml(anyString(), anyString()))
+			.thenThrow(new ConversionException("Parse error at line 1: bad SQL"));
+
+		assertThatThrownBy(() -> diagramTools.createDiagram(DiagramKind.SchemaDiagram, "Orders", "not sql",
+				"sql-postgres")).isInstanceOf(ConversionException.class);
+
+		assertThat(diagramTools.listDiagrams()).hasSize((int) countBefore);
+	}
+
+	@Test
+	void aFailedConversionDuringUpdateDiagramLeavesExistingContentUntouchedAndAppendsNoRevision() {
+		Diagram diagram = diagramService.create(DiagramKind.SchemaDiagram, "Orders schema",
+				"Table orders { id integer }");
+		when(dbmlConversionClient.sqlToDbml(anyString(), anyString()))
+			.thenThrow(new ConversionException("Parse error at line 1: bad SQL"));
+
+		assertThatThrownBy(
+				() -> diagramTools.updateDiagram(diagram.getId(), null, "not sql", "sql-postgres"))
+			.isInstanceOf(ConversionException.class);
+
+		Diagram reloaded = diagramService.getById(diagram.getId());
+		assertThat(reloaded.getContent()).isEqualTo("Table orders { id integer }");
+		assertThat(diagramService.listRevisions(diagram.getId())).isEmpty();
+	}
+
+	@Test
+	void exportDiagramSqlPostgresReturnsConvertedSql() {
+		Diagram diagram = diagramService.create(DiagramKind.SchemaDiagram, "Orders schema",
+				"Table orders { id integer }");
+		when(dbmlConversionClient.dbmlToSql("Table orders { id integer }", "postgres"))
+			.thenReturn("CREATE TABLE orders (id INT);");
+
+		String exported = diagramTools.exportDiagram(diagram.getId(), "sql-postgres");
+
+		assertThat(exported).isEqualTo("CREATE TABLE orders (id INT);");
+	}
+
+	@Test
+	void exportDiagramDbmlMakesNoCallToTheConversionService() {
+		Diagram diagram = diagramService.create(DiagramKind.SchemaDiagram, "Orders schema",
+				"Table orders { id integer }");
+
+		diagramTools.exportDiagram(diagram.getId(), "dbml");
+
+		verifyNoInteractions(dbmlConversionClient);
+	}
+
+	@Test
+	void formatIsStillIgnoredForGenericDiagram() {
+		DiagramTools.DiagramToolResult result = diagramTools.createDiagram(DiagramKind.GenericDiagram, "Flow",
+				"flowchart TD", "sql-postgres");
+
+		assertThat(result.content()).isEqualTo("flowchart TD");
+		verify(dbmlConversionClient, never()).sqlToDbml(anyString(), anyString());
 	}
 
 	@Test

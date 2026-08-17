@@ -22,7 +22,7 @@ Returns: `{ id, title, kind, content, updatedAt }`
 
 - `kind`: `"SchemaDiagram" | "GenericDiagram"`
 - `content`: text
-- `format`: required when `kind = SchemaDiagram` — `"dbml" | "sql"`. SQL input is converted to DBML before storage (DBML is always the stored form) via the conversion service in the Next.js app — see [ADR-0009](./adr/0009-dbml-sql-conversion-lives-in-nextjs.md). Ignored for `GenericDiagram` (always Mermaid).
+- `format`: required when `kind = SchemaDiagram` — `"dbml" | "sql-postgres" | "sql-mysql" | "sql-sqlserver"`. SQL input is converted to DBML before storage (DBML is always the stored form) via the conversion service in the Next.js app — see [ADR-0009](./adr/0009-dbml-sql-conversion-lives-in-nextjs.md). The dialect-qualified `sql-*` names (matching `export_diagram`'s) exist because the conversion service needs to know which SQL dialect it's parsing; a plain `"sql"` format was underspecified for that. Ignored for `GenericDiagram` (always Mermaid).
 
 Returns the created Diagram (same shape as `get_diagram`).
 

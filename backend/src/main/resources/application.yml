@@ -21,6 +21,9 @@ spring:
 mcp:
   api-key: ${MCP_API_KEY:}
 
+omnidiagram:
+  frontend-url: ${FRONTEND_INTERNAL_URL:http://localhost:3000}
+
 server:
   port: 8080
 
