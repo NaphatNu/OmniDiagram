@@ -5,7 +5,6 @@ import { Diagram } from "./types";
 // against /api/diagrams once that lands.
 export const placeholderDiagrams: Diagram[] = [
   {
-    id: "1e6a0e2e-2f1a-4b8e-9c1a-000000000001",
     shareToken: "tt1-schema-orders",
     title: "Orders schema",
     kind: "SchemaDiagram",
@@ -25,7 +24,6 @@ Ref: orders.customer_id > customers.id
     updatedAt: "2026-08-15T09:30:00Z",
   },
   {
-    id: "1e6a0e2e-2f1a-4b8e-9c1a-000000000002",
     shareToken: "tt2-checkout-flow",
     title: "Checkout flow",
     kind: "GenericDiagram",
