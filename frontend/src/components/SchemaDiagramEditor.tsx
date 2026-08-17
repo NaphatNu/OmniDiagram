@@ -2,22 +2,31 @@
 
 import { useMemo } from "react";
 import {
+  applyNodeChanges,
   Background,
   Controls,
   Node,
+  NodeChange,
   ReactFlow,
   ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Parser } from "@dbml/core";
+import { mergeLayout } from "@/lib/layout";
+import { Position } from "@/lib/types";
 
-function tablesToNodes(dbml: string): { nodes: Node[]; error: string | null } {
+function tablesToNodes(
+  dbml: string,
+  layout: Record<string, Position>,
+): { nodes: Node[]; error: string | null; tableNames: string[] } {
   try {
     const database = new Parser().parse(dbml, "dbml");
     const tables = database.schemas[0]?.tables ?? [];
-    const nodes: Node[] = tables.map((table, index) => ({
+    const tableNames = tables.map((table) => table.name);
+    const positions = mergeLayout(tableNames, layout);
+    const nodes: Node[] = tables.map((table) => ({
       id: table.name,
-      position: { x: (index % 4) * 260, y: Math.floor(index / 4) * 220 },
+      position: positions[table.name],
       data: {
         label: (
           <div className="text-left">
@@ -42,20 +51,41 @@ function tablesToNodes(dbml: string): { nodes: Node[]; error: string | null } {
         width: 220,
       },
     }));
-    return { nodes, error: null };
+    return { nodes, error: null, tableNames };
   } catch (err) {
-    return { nodes: [], error: err instanceof Error ? err.message : "Invalid DBML" };
+    return { nodes: [], error: err instanceof Error ? err.message : "Invalid DBML", tableNames: [] };
   }
 }
 
 export function SchemaDiagramEditor({
   content,
   onContentChange,
+  layout,
+  onLayoutChange,
 }: {
   content: string;
   onContentChange: (content: string) => void;
+  layout: Record<string, Position>;
+  onLayoutChange: (layout: Record<string, Position>) => void;
 }) {
-  const { nodes, error } = useMemo(() => tablesToNodes(content), [content]);
+  const { nodes, error, tableNames } = useMemo(
+    () => tablesToNodes(content, layout),
+    [content, layout],
+  );
+
+  function handleNodesChange(changes: NodeChange[]) {
+    if (!changes.some((change) => change.type === "position")) {
+      return;
+    }
+    const updatedNodes = applyNodeChanges(changes, nodes);
+    const nextLayout: Record<string, Position> = {};
+    for (const node of updatedNodes) {
+      if (tableNames.includes(node.id)) {
+        nextLayout[node.id] = { x: node.position.x, y: node.position.y };
+      }
+    }
+    onLayoutChange(nextLayout);
+  }
 
   return (
     <div className="grid flex-1 grid-cols-2">
@@ -70,7 +100,7 @@ export function SchemaDiagramEditor({
           <div className="p-4 text-sm text-red-600 dark:text-red-400">{error}</div>
         ) : (
           <ReactFlowProvider>
-            <ReactFlow nodes={nodes} edges={[]} fitView>
+            <ReactFlow nodes={nodes} edges={[]} onNodesChange={handleNodesChange} fitView>
               <Background />
               <Controls />
             </ReactFlow>

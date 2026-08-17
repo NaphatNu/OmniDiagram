@@ -108,4 +108,24 @@ describe("useDiagramEditor", () => {
 
     expect(updateDiagram).toHaveBeenCalledWith("abc", { content: "new content" });
   });
+
+  it("marks dirty when the layout changes", () => {
+    const { result } = renderHook(() => useDiagramEditor(initial));
+    act(() => result.current.setLayout({ orders: { x: 10, y: 20 } }));
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("sends only the layout when only the layout changed", async () => {
+    const newLayout = { orders: { x: 10, y: 20 } };
+    vi.mocked(updateDiagram).mockResolvedValue({ ...initial, layout: newLayout });
+    const { result } = renderHook(() => useDiagramEditor(initial));
+    act(() => result.current.setLayout(newLayout));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(updateDiagram).toHaveBeenCalledWith("abc", { layout: newLayout });
+    expect(result.current.isDirty).toBe(false);
+  });
 });
