@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 test("export DBML from a SchemaDiagram downloads a file containing the table", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const [download] = await Promise.all([
@@ -20,10 +20,10 @@ test("export DBML from a SchemaDiagram downloads a file containing the table", a
 });
 
 test("export SQL (PostgreSQL) downloads a file containing CREATE TABLE", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const [download] = await Promise.all([
@@ -42,10 +42,10 @@ test("export SQL (PostgreSQL) downloads a file containing CREATE TABLE", async (
 });
 
 test("importing a .sql file replaces the buffer and marks it dirty", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   await page.getByRole("button", { name: "Import" }).click();
   const dialog = page.getByRole("dialog", { name: "Import" });

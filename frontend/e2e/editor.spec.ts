@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test("edit, save, and reload preserves the change", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   const textarea = page.locator("textarea");
   const edited = "Table orders {\n  id integer [primary key]\n}\n";
@@ -19,10 +19,10 @@ test("edit, save, and reload preserves the change", async ({ page }) => {
 });
 
 test("navigating away with unsaved changes warns first", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   await page.locator("textarea").fill("Table orders {\n  id integer [primary key]\n}\n");
   await expect(page.getByText("Unsaved changes")).toBeVisible();
@@ -35,5 +35,5 @@ test("navigating away with unsaved changes warns first", async ({ page }) => {
   await page.getByRole("link", { name: "OmniDiagram" }).click();
 
   expect(dialogMessage).toContain("unsaved changes");
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 });

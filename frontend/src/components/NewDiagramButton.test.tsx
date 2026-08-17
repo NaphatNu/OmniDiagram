@@ -35,7 +35,7 @@ describe("NewDiagramButton", () => {
     fireEvent.click(screen.getByText("SchemaDiagram"));
 
     expect(createDiagram).toHaveBeenCalledWith("SchemaDiagram");
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/d/abc"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/share/abc"));
   });
 
   it("disables the button while a create request is in flight", async () => {

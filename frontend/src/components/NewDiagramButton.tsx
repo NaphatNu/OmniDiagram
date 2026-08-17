@@ -15,7 +15,7 @@ export function NewDiagramButton() {
     setCreating(true);
     try {
       const diagram = await createDiagram(kind);
-      router.push(`/d/${diagram.shareToken}`);
+      router.push(`/share/${diagram.shareToken}`);
     } catch {
       setCreating(false);
     }

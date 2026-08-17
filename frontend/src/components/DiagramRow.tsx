@@ -35,7 +35,7 @@ export function DiagramRow({
   return (
     <div className="flex items-center justify-between border-b border-black/5 px-4 py-3 last:border-0 dark:border-white/5">
       <Link
-        href={`/d/${diagram.shareToken}`}
+        href={`/share/${diagram.shareToken}`}
         className="flex min-w-0 flex-1 items-center gap-3"
       >
         <span className="truncate text-sm font-medium">{diagram.title}</span>
