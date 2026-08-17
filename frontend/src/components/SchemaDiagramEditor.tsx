@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useContext, useMemo, useRef, useState } from "react";
 import {
   applyNodeChanges,
   Background,
@@ -10,16 +10,25 @@ import {
   NodeChange,
   NodeProps,
   NodeTypes,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Parser } from "@dbml/core";
 import { mergeLayout } from "@/lib/layout";
-import { buildRelationshipEdges, RelationshipEdge as RelationshipEdgeData } from "@/lib/relationships";
+import {
+  buildRelationshipEdges,
+  classifyRelationshipType,
+  connectionsForTable,
+  edgesForField,
+  RelationshipEdge as RelationshipEdgeData,
+  RelationshipType,
+} from "@/lib/relationships";
 import { Position as LayoutPosition } from "@/lib/types";
-import { RelationshipEdge } from "./RelationshipEdge";
+import { RelationshipEdge, RELATIONSHIP_TYPE_COLORS, HighlightContext } from "./RelationshipEdge";
 
 interface TableNodeData extends Record<string, unknown> {
   tableName: string;
@@ -27,12 +36,23 @@ interface TableNodeData extends Record<string, unknown> {
 }
 
 function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
+  const { highlightedTables, onFieldClick } = useContext(HighlightContext);
+  const isHighlighted = highlightedTables?.has(data.tableName) ?? false;
+  const isDimmed = highlightedTables !== null && !isHighlighted;
+
   return (
     <div
+      data-testid={`table-node-${data.tableName}`}
       style={{
-        border: "1px solid rgba(0,0,0,0.1)",
+        // A constant-width border with only the color changing (rather than
+        // 1px <-> 2px) keeps the node's box dimensions fixed regardless of
+        // highlight state — flipping border-width mid-gesture was observed
+        // to abort an in-progress react-flow drag (likely a ResizeObserver
+        // remeasure resetting the drag's reference frame).
+        border: `2px solid ${isHighlighted ? "#2563eb" : "rgba(0,0,0,0.1)"}`,
         borderRadius: 8,
         width: 220,
+        opacity: isDimmed ? 0.4 : 1,
       }}
       className="bg-background text-left"
     >
@@ -41,7 +61,12 @@ function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
       </div>
       <div className="px-2 py-1">
         {data.fields.map((field) => (
-          <div key={field.name} className="relative text-xs">
+          <div
+            key={field.name}
+            data-testid={`field-${data.tableName}-${field.name}`}
+            onClick={() => onFieldClick(data.tableName, field.name)}
+            className="relative cursor-pointer text-xs hover:bg-black/5 dark:hover:bg-white/5"
+          >
             <Handle
               type="target"
               position={Position.Left}
@@ -64,6 +89,122 @@ function TableNode({ data }: NodeProps<Node<TableNodeData>>) {
 
 const nodeTypes: NodeTypes = { tableNode: TableNode };
 const edgeTypes = { relationship: RelationshipEdge };
+
+const LEGEND_LABELS: Record<RelationshipType, string> = {
+  "one-to-one": "One-to-one",
+  "one-to-many": "One-to-many",
+  "many-to-many": "Many-to-many",
+};
+
+function RelationshipLegend() {
+  return (
+    <Panel
+      position="bottom-left"
+      className="flex flex-col gap-1 rounded-md border border-black/10 bg-background/90 p-2 text-xs dark:border-white/10"
+    >
+      {(Object.keys(LEGEND_LABELS) as RelationshipType[]).map((type) => (
+        <div key={type} className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-0.5 w-4"
+            style={{ backgroundColor: RELATIONSHIP_TYPE_COLORS[type] }}
+          />
+          <span className="text-zinc-600 dark:text-zinc-300">{LEGEND_LABELS[type]}</span>
+        </div>
+      ))}
+    </Panel>
+  );
+}
+
+function FlowCanvas({
+  nodes,
+  edges,
+  onNodesChange,
+}: {
+  nodes: Node[];
+  edges: RelationshipEdgeData[];
+  onNodesChange: (changes: NodeChange[]) => void;
+}) {
+  const { setCenter, getNode } = useReactFlow();
+  const [hoveredTable, setHoveredTable] = useState<string | null>(null);
+  const [jumpTables, setJumpTables] = useState<Set<string> | null>(null);
+  const jumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hoverConnections = hoveredTable ? connectionsForTable(hoveredTable, edges) : null;
+  const highlightedTables = hoverConnections
+    ? new Set([hoveredTable as string, ...hoverConnections.tableNames])
+    : jumpTables;
+  const highlightedEdgeIds = hoverConnections?.edgeIds ?? null;
+
+  function handleFieldClick(tableName: string, fieldName: string) {
+    const targets = edgesForField(tableName, fieldName, edges);
+    if (targets.length === 0) {
+      return;
+    }
+    const destinations = new Set<string>();
+    for (const edge of targets) {
+      destinations.add(edge.source === tableName ? edge.target : edge.source);
+    }
+    const firstDestination = getNode([...destinations][0]);
+    if (firstDestination) {
+      setCenter(firstDestination.position.x + 110, firstDestination.position.y + 60, {
+        zoom: 1,
+        duration: 400,
+      });
+    }
+    destinations.add(tableName);
+    setJumpTables(destinations);
+    if (jumpTimeoutRef.current) {
+      clearTimeout(jumpTimeoutRef.current);
+    }
+    jumpTimeoutRef.current = setTimeout(() => setJumpTables(null), 1500);
+  }
+
+  // flowEdges only carries data that's stable regardless of hover/click
+  // state (cardinalities, type, self-loop), so it — like `nodes` — never
+  // changes identity on hover. Highlight/dim state flows through
+  // HighlightContext instead of node/edge `data`, deliberately: see the
+  // comment on HighlightContext for why (rebuilding nodes/edges on every
+  // hover was observed to abort an in-progress drag).
+  const flowEdges = useMemo(
+    () =>
+      edges
+        .filter((edge) => !edge.dangling)
+        .map((edge) => ({
+          id: edge.id,
+          type: "relationship",
+          source: edge.source,
+          sourceHandle: edge.sourceHandle,
+          target: edge.target,
+          targetHandle: edge.targetHandle,
+          data: {
+            sourceCardinality: edge.sourceCardinality,
+            targetCardinality: edge.targetCardinality,
+            selfReferencing: edge.selfReferencing,
+            relationshipType: classifyRelationshipType(edge),
+          },
+        })),
+    [edges],
+  );
+
+  return (
+    <HighlightContext.Provider value={{ highlightedTables, highlightedEdgeIds, onFieldClick: handleFieldClick }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={flowEdges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onNodesChange={onNodesChange}
+        onNodeMouseEnter={(_, node) => setHoveredTable(node.id)}
+        onNodeMouseLeave={() => setHoveredTable(null)}
+        fitView
+      >
+        <Background />
+        <Controls />
+        <RelationshipLegend />
+      </ReactFlow>
+    </HighlightContext.Provider>
+  );
+}
 
 function tablesToNodes(
   dbml: string,
@@ -127,21 +268,6 @@ export function SchemaDiagramEditor({
   );
 
   const danglingEdges = edges.filter((edge) => edge.dangling);
-  const flowEdges = edges
-    .filter((edge) => !edge.dangling)
-    .map((edge) => ({
-      id: edge.id,
-      type: "relationship",
-      source: edge.source,
-      sourceHandle: edge.sourceHandle,
-      target: edge.target,
-      targetHandle: edge.targetHandle,
-      data: {
-        sourceCardinality: edge.sourceCardinality,
-        targetCardinality: edge.targetCardinality,
-        selfReferencing: edge.selfReferencing,
-      },
-    }));
 
   function handleNodesChange(changes: NodeChange[]) {
     if (!changes.some((change) => change.type === "position")) {
@@ -179,17 +305,7 @@ export function SchemaDiagramEditor({
             )}
             <div className="relative flex-1">
               <ReactFlowProvider>
-                <ReactFlow
-                  nodes={nodes}
-                  edges={flowEdges}
-                  nodeTypes={nodeTypes}
-                  edgeTypes={edgeTypes}
-                  onNodesChange={handleNodesChange}
-                  fitView
-                >
-                  <Background />
-                  <Controls />
-                </ReactFlow>
+                <FlowCanvas nodes={nodes} edges={edges} onNodesChange={handleNodesChange} />
               </ReactFlowProvider>
             </div>
           </>

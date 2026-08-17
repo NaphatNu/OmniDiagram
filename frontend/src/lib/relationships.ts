@@ -32,6 +32,63 @@ function cardinalityOf(relation: string): Cardinality {
   return relation === "1" ? "1" : "*";
 }
 
+export type RelationshipType = "one-to-one" | "one-to-many" | "many-to-many";
+
+export function classifyRelationshipType(
+  edge: Pick<RelationshipEdge, "sourceCardinality" | "targetCardinality">,
+): RelationshipType {
+  if (edge.sourceCardinality === "1" && edge.targetCardinality === "1") {
+    return "one-to-one";
+  }
+  if (edge.sourceCardinality === "*" && edge.targetCardinality === "*") {
+    return "many-to-many";
+  }
+  return "one-to-many";
+}
+
+export interface TableConnections {
+  tableNames: Set<string>;
+  edgeIds: Set<string>;
+}
+
+/**
+ * Tables/edges directly connected to `tableName` — one hop only, not
+ * transitive, for the hover-highlight behaviour.
+ */
+export function connectionsForTable(tableName: string, edges: RelationshipEdge[]): TableConnections {
+  const tableNames = new Set<string>();
+  const edgeIds = new Set<string>();
+  for (const edge of edges) {
+    if (edge.dangling) continue;
+    if (edge.source === tableName) {
+      tableNames.add(edge.target);
+      edgeIds.add(edge.id);
+    } else if (edge.target === tableName) {
+      tableNames.add(edge.source);
+      edgeIds.add(edge.id);
+    }
+  }
+  return { tableNames, edgeIds };
+}
+
+/**
+ * All Refs a given field participates in (as either endpoint) — a field can
+ * be part of more than one Ref, and click-to-jump must resolve all of them
+ * rather than picking one arbitrarily.
+ */
+export function edgesForField(
+  tableName: string,
+  fieldName: string,
+  edges: RelationshipEdge[],
+): RelationshipEdge[] {
+  return edges.filter(
+    (edge) =>
+      !edge.dangling &&
+      ((edge.source === tableName && edge.sourceHandle === fieldName) ||
+        (edge.target === tableName && edge.targetHandle === fieldName)),
+  );
+}
+
 function describeMissing(endpoint: RelationshipRefEndpoint, table: RelationshipTable | undefined): string | null {
   const fieldName = endpoint.fieldNames[0];
   if (!table) {
