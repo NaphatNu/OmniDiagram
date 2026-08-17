@@ -72,5 +72,15 @@ MCP_API_KEY=
 ## CI/CD
 
 - Pull requests run on GitHub-hosted runners: lint, typecheck, Vitest, Playwright, and `mvn verify` (Testcontainers).
-- Pushes to `main` build images, push them to GHCR, then deploy via a self-hosted runner on `kla-server`.
-- The deploy workflow triggers **only** on `push` to `main`, never on `pull_request` — a fork PR must never execute on the self-hosted runner.
+- Pushes to `main` build images and push them to GHCR (`release.yml`), then `deploy.yml` runs on a self-hosted runner on `kla-server`.
+- `deploy.yml` triggers on `workflow_run` after `release.yml` completes on `main` (not on `push` directly) so the deploy never races a build still pushing images. It never triggers on `pull_request` — a fork PR must never execute on the self-hosted runner.
+- `deploy.sh` (repo root) does the actual work: `docker compose pull`, `docker compose up -d`, poll the backend's `/actuator/health` (inside the compose network, via `docker compose exec`) for up to 60s, fail loudly if it never comes up, then `docker image prune -f`. It can also be run by hand from the compose root.
+
+### Self-hosted runner setup (manual, once)
+
+Public repos must not run untrusted code on a self-hosted runner, so the whole design routes around that: `deploy.yml` only ever fires via `workflow_run` off `release.yml`, which itself only runs on `push` to `main`, and `main` requires review. Also enable **require approval for workflow runs from outside collaborators** in repo Settings → Actions.
+
+1. Settings → Actions → Runners → add a runner, install it on `kla-server` as a service running under a **dedicated, non-root user** with Docker access, in a work directory outside the other stacks' directories (`sdvd-*`, `retirement-planner-app`, `cloudflare-tunnel`).
+2. Before the first deploy, create the `.env` file in that runner's checkout directory (it becomes the compose root — see [Secrets](#secrets)). It's gitignored and never comes from CI.
+3. `docker login ghcr.io` isn't needed on the host itself — `deploy.yml` logs in with `GITHUB_TOKEN` before calling `deploy.sh`.
+4. The `actions/checkout` step in `deploy.yml` runs with `clean: false`: the checkout directory is reused as the compose root across runs, and the default `git clean -ffdx` would otherwise delete the untracked `.env` and the `./data/postgres` bind mount (the live database) on every deploy.
