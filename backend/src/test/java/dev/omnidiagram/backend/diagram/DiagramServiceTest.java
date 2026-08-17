@@ -140,6 +140,75 @@ class DiagramServiceTest extends AbstractIntegrationTest {
 		assertThat(firstIndex).isLessThan(secondIndex);
 	}
 
+	@Test
+	void listRevisionsReturnsNewestFirstAndExcludesOtherDiagramsRevisions() {
+		Diagram diagram = diagramService.create(DiagramKind.GenericDiagram, "Flow", "flowchart TD");
+		Diagram other = diagramService.create(DiagramKind.GenericDiagram, "Other", "flowchart TD");
+		diagramService.update(diagram.getId(), null, "flowchart LR", null);
+		diagramService.update(diagram.getId(), null, "flowchart RL", null);
+		diagramService.update(other.getId(), null, "flowchart BT", null);
+
+		List<Revision> revisions = diagramService.listRevisions(diagram.getId());
+
+		assertThat(revisions).hasSize(2);
+		assertThat(revisions.get(0).getContent()).isEqualTo("flowchart LR");
+		assertThat(revisions.get(1).getContent()).isEqualTo("flowchart TD");
+	}
+
+	@Test
+	void revertToRestoresContentAndLayoutTogether() {
+		Diagram diagram = diagramService.create(DiagramKind.SchemaDiagram, "Orders schema",
+				"Table orders { id integer }");
+		diagramService.update(diagram.getId(), null, "Table orders { id integer, name text }",
+				Map.of("orders", new Position(10, 20)));
+		List<Revision> revisions = diagramService.listRevisions(diagram.getId());
+		Revision original = revisions.get(0);
+
+		Diagram reverted = diagramService.revertTo(diagram.getId(), original.getId());
+
+		assertThat(reverted.getContent()).isEqualTo("Table orders { id integer }");
+		assertThat(reverted.getLayout()).isEmpty();
+	}
+
+	@Test
+	void revertToAppendsANewRevisionHoldingThePreRevertContent() {
+		Diagram diagram = diagramService.create(DiagramKind.GenericDiagram, "Flow", "flowchart TD");
+		diagramService.update(diagram.getId(), null, "flowchart LR", null);
+		Revision original = diagramService.listRevisions(diagram.getId()).get(0);
+
+		diagramService.revertTo(diagram.getId(), original.getId());
+
+		List<Revision> revisions = diagramService.listRevisions(diagram.getId());
+		assertThat(revisions).hasSize(2);
+		assertThat(revisions.get(0).getContent()).isEqualTo("flowchart LR");
+	}
+
+	@Test
+	void revertingTwiceReturnsToTheIntermediateStateSinceRevertIsNotIdempotent() {
+		Diagram diagram = diagramService.create(DiagramKind.GenericDiagram, "Flow", "flowchart TD");
+		diagramService.update(diagram.getId(), null, "flowchart LR", null);
+		Revision original = diagramService.listRevisions(diagram.getId()).get(0);
+
+		Diagram firstRevert = diagramService.revertTo(diagram.getId(), original.getId());
+		assertThat(firstRevert.getContent()).isEqualTo("flowchart TD");
+
+		Revision preFirstRevert = diagramService.listRevisions(diagram.getId()).get(0);
+		Diagram secondRevert = diagramService.revertTo(diagram.getId(), preFirstRevert.getId());
+
+		assertThat(secondRevert.getContent()).isEqualTo("flowchart LR");
+	}
+
+	@Test
+	void revertToWithARevisionIdBelongingToAnotherDiagramThrowsDiagramNotFoundException() {
+		Diagram diagram = diagramService.create(DiagramKind.GenericDiagram, "Flow", "flowchart TD");
+		Diagram other = diagramService.create(DiagramKind.GenericDiagram, "Other", "flowchart LR");
+		diagramService.update(other.getId(), null, "flowchart RL", null);
+		Revision otherRevision = diagramService.listRevisions(other.getId()).get(0);
+
+		assertThatThrownBy(() -> diagramService.revertTo(diagram.getId(), otherRevision.getId()))
+				.isInstanceOf(DiagramNotFoundException.class);
+	}
+
 	private static int indexOf(List<Diagram> diagrams, UUID id) {
 		for (int i = 0; i < diagrams.size(); i++) {
 			if (diagrams.get(i).getId().equals(id)) {
