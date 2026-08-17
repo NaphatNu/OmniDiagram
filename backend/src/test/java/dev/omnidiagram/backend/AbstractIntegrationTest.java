@@ -10,7 +10,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @SpringBootTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-abstract class AbstractIntegrationTest {
+public abstract class AbstractIntegrationTest {
 
 	@Container
 	@ServiceConnection
