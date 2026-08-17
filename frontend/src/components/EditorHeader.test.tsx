@@ -15,7 +15,15 @@ const diagram: Diagram = {
 describe("EditorHeader", () => {
   it("disables Save and shows Saved when clean", () => {
     render(
-      <EditorHeader diagram={diagram} isDirty={false} isSaving={false} error={null} onSave={vi.fn()} />,
+      <EditorHeader
+        diagram={diagram}
+        isDirty={false}
+        isSaving={false}
+        error={null}
+        onSave={vi.fn()}
+        isHistoryOpen={false}
+        onToggleHistory={vi.fn()}
+      />,
     );
     expect(screen.getByText("Save")).toBeDisabled();
     expect(screen.getByText("Saved")).toBeInTheDocument();
@@ -23,7 +31,15 @@ describe("EditorHeader", () => {
 
   it("enables Save and shows Unsaved changes when dirty", () => {
     render(
-      <EditorHeader diagram={diagram} isDirty={true} isSaving={false} error={null} onSave={vi.fn()} />,
+      <EditorHeader
+        diagram={diagram}
+        isDirty={true}
+        isSaving={false}
+        error={null}
+        onSave={vi.fn()}
+        isHistoryOpen={false}
+        onToggleHistory={vi.fn()}
+      />,
     );
     expect(screen.getByText("Save")).not.toBeDisabled();
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
@@ -31,7 +47,15 @@ describe("EditorHeader", () => {
 
   it("disables Save while a save is in flight", () => {
     render(
-      <EditorHeader diagram={diagram} isDirty={true} isSaving={true} error={null} onSave={vi.fn()} />,
+      <EditorHeader
+        diagram={diagram}
+        isDirty={true}
+        isSaving={true}
+        error={null}
+        onSave={vi.fn()}
+        isHistoryOpen={false}
+        onToggleHistory={vi.fn()}
+      />,
     );
     expect(screen.getByText("Save")).toBeDisabled();
   });
@@ -44,9 +68,28 @@ describe("EditorHeader", () => {
         isSaving={false}
         error="Failed to save"
         onSave={vi.fn()}
+        isHistoryOpen={false}
+        onToggleHistory={vi.fn()}
       />,
     );
     expect(screen.getByText("Failed to save")).toBeInTheDocument();
     expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
+  it("calls onToggleHistory when the History button is clicked", () => {
+    const onToggleHistory = vi.fn();
+    render(
+      <EditorHeader
+        diagram={diagram}
+        isDirty={false}
+        isSaving={false}
+        error={null}
+        onSave={vi.fn()}
+        isHistoryOpen={false}
+        onToggleHistory={onToggleHistory}
+      />,
+    );
+    screen.getByText("History").click();
+    expect(onToggleHistory).toHaveBeenCalledTimes(1);
   });
 });

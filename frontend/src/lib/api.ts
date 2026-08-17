@@ -1,4 +1,4 @@
-import { Diagram, DiagramKind, DiagramPatch, DiagramSummary } from "./types";
+import { Diagram, DiagramKind, DiagramPatch, DiagramSummary, RevisionSummary } from "./types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -58,5 +58,15 @@ export function updateDiagram(shareToken: string, patch: DiagramPatch): Promise<
   return request(`/api/diagrams/${shareToken}`, {
     method: "PUT",
     body: JSON.stringify(patch),
+  });
+}
+
+export function listRevisions(shareToken: string): Promise<RevisionSummary[]> {
+  return request(`/api/diagrams/${shareToken}/revisions`);
+}
+
+export function revertToRevision(shareToken: string, revisionId: string): Promise<Diagram> {
+  return request(`/api/diagrams/${shareToken}/revisions/${revisionId}/revert`, {
+    method: "POST",
   });
 }

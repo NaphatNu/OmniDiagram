@@ -19,6 +19,14 @@ export function useDiagramEditor(initial: Diagram) {
   const layoutDirty = !layoutsEqual(layout, lastSavedLayout);
   const isDirty = contentDirty || layoutDirty;
 
+  const applyDiagram = useCallback((updated: Diagram) => {
+    setLastSavedContent(updated.content);
+    setLastSavedLayout(updated.layout);
+    setDiagram(updated);
+    setContent(updated.content);
+    setLayout(updated.layout);
+  }, []);
+
   const save = useCallback(async () => {
     if (savingRef.current || (!contentDirty && !layoutDirty)) {
       return;
@@ -31,18 +39,14 @@ export function useDiagramEditor(initial: Diagram) {
       if (contentDirty) patch.content = content;
       if (layoutDirty) patch.layout = layout;
       const updated = await updateDiagram(diagram.shareToken, patch);
-      setLastSavedContent(updated.content);
-      setLastSavedLayout(updated.layout);
-      setDiagram(updated);
-      setContent(updated.content);
-      setLayout(updated.layout);
+      applyDiagram(updated);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save");
     } finally {
       savingRef.current = false;
       setIsSaving(false);
     }
-  }, [content, contentDirty, layout, layoutDirty, diagram.shareToken]);
+  }, [content, contentDirty, layout, layoutDirty, diagram.shareToken, applyDiagram]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -76,5 +80,6 @@ export function useDiagramEditor(initial: Diagram) {
     isSaving,
     error,
     save,
+    applyDiagram,
   };
 }
