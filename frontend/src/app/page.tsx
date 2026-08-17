@@ -1,12 +1,10 @@
 import { AppHeader } from "@/components/AppHeader";
 import { DiagramRow } from "@/components/DiagramRow";
 import { NewDiagramButton } from "@/components/NewDiagramButton";
-import { placeholderDiagrams } from "@/lib/placeholder-diagrams";
+import { DiagramSummary } from "@/lib/types";
 
 export default function Dashboard() {
-  const diagrams = [...placeholderDiagrams].sort(
-    (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
-  );
+  const diagrams: DiagramSummary[] = [];
 
   return (
     <div className="flex flex-1 flex-col">

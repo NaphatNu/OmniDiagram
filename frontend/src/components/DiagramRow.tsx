@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatUpdatedAt } from "@/lib/format";
-import { Diagram } from "@/lib/types";
+import { DiagramSummary } from "@/lib/types";
 import { KindBadge } from "./KindBadge";
 
-export function DiagramRow({ diagram }: { diagram: Diagram }) {
+export function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
   const [deleted, setDeleted] = useState(false);
 
   if (deleted) return null;
