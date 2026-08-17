@@ -9,3 +9,5 @@ So the conversion runs where `@dbml/core` already runs. The Next.js app exposes 
 ## Consequences
 
 The backend now depends on the frontend at runtime for SQL import/export, inverting the usual direction — if the frontend container is down, those MCP tools fail while the rest of the API keeps working. The `/api/internal/*` prefix must never be exposed through Caddy, or anyone could reach it from the internet. Conversion also costs an extra internal HTTP hop, and errors from `@dbml/core` have to be translated into meaningful MCP tool errors across that boundary.
+
+`sql-sqlite` turned out not to be deliverable: `@dbml/core` (through the latest published 10.1.1) silently returns an empty string for the `sqlite` dialect on both import and export, rather than converting or throwing. There is no newer major version that adds it. `/api/internal/dbml/*` and `export_diagram` therefore only support `postgres`, `mysql`, and `mssql` — see [docs/mcp-tools.md](../mcp-tools.md).
