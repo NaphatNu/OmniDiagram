@@ -16,6 +16,10 @@ spring:
       server:
         name: omnidiagram-mcp-server
         version: 0.1.0
+        protocol: STREAMABLE
+
+mcp:
+  api-key: ${MCP_API_KEY:}
 
 server:
   port: 8080
