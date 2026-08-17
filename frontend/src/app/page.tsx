@@ -21,7 +21,7 @@ export default function Dashboard() {
         ) : (
           <div className="rounded-lg border border-black/10 dark:border-white/10">
             {diagrams.map((diagram) => (
-              <DiagramRow key={diagram.id} diagram={diagram} />
+              <DiagramRow key={diagram.shareToken} diagram={diagram} />
             ))}
           </div>
         )}

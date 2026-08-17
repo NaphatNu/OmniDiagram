@@ -30,7 +30,7 @@ Returns the created Diagram (same shape as `get_diagram`).
 
 Partial update — omit a field to leave it unchanged. `format` follows the same rule as `create_diagram` when `content` is provided for a SchemaDiagram.
 
-Last-write-wins: no revision/version check, no conflict error. Every call still creates a new Revision snapshot.
+Last-write-wins: no revision/version check, no conflict error. A new Revision snapshot is created whenever `content` or layout changes; a title-only update creates none (a Revision captures content and layout, per [CONTEXT.md](../CONTEXT.md)).
 
 ## `export_diagram(id, format)`
 
