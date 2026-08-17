@@ -1,6 +1,7 @@
 # Working preferences
 
 - Before starting any coding task in this repo, invoke the `andrej-karpathy-skills:karpathy-guidelines` skill.
+- Before touching CI/CD workflows, Docker builds, or deploy tooling, read `docs/incidents.md` — it logs failures that weren't obvious from reading the code, with root cause and fix, so the same class of bug isn't re-debugged from scratch. Add a new entry there (don't just fix silently) whenever a similar non-obvious failure turns up.
 
 ## Reporting
 
