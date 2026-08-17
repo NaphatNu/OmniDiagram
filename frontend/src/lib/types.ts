@@ -22,3 +22,9 @@ export interface DiagramPatch {
   content?: string;
   layout?: Record<string, Position>;
 }
+
+export interface RevisionSummary {
+  id: string;
+  createdAt: string;
+  contentPreview: string;
+}

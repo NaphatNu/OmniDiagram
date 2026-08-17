@@ -128,4 +128,16 @@ describe("useDiagramEditor", () => {
     expect(updateDiagram).toHaveBeenCalledWith("abc", { layout: newLayout });
     expect(result.current.isDirty).toBe(false);
   });
+
+  it("applyDiagram replaces content and layout and clears dirty state", () => {
+    const { result } = renderHook(() => useDiagramEditor(initial));
+    act(() => result.current.setContent("changed"));
+
+    const restored: Diagram = { ...initial, content: "restored content", layout: { orders: { x: 1, y: 2 } } };
+    act(() => result.current.applyDiagram(restored));
+
+    expect(result.current.content).toBe("restored content");
+    expect(result.current.layout).toEqual({ orders: { x: 1, y: 2 } });
+    expect(result.current.isDirty).toBe(false);
+  });
 });

@@ -10,12 +10,16 @@ export function EditorHeader({
   isSaving,
   error,
   onSave,
+  isHistoryOpen,
+  onToggleHistory,
 }: {
   diagram: Diagram;
   isDirty: boolean;
   isSaving: boolean;
   error: string | null;
   onSave: () => void;
+  isHistoryOpen: boolean;
+  onToggleHistory: () => void;
 }) {
   return (
     <AppHeader
@@ -40,6 +44,13 @@ export function EditorHeader({
         className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-medium hover:bg-black/5 disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
       >
         Save
+      </button>
+      <button
+        onClick={onToggleHistory}
+        aria-pressed={isHistoryOpen}
+        className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"
+      >
+        History
       </button>
       <button className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5">
         Export

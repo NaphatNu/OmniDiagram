@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { EditorHeader } from "@/components/EditorHeader";
+import { RevisionPanel } from "@/components/RevisionPanel";
 import { SchemaDiagramEditor } from "@/components/SchemaDiagramEditor";
 import { GenericDiagramEditor } from "@/components/GenericDiagramEditor";
 import { useDiagramEditor } from "@/hooks/useDiagramEditor";
@@ -11,6 +12,7 @@ import { Diagram } from "@/lib/types";
 
 function Editor({ diagram }: { diagram: Diagram }) {
   const editor = useDiagramEditor(diagram);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -20,17 +22,32 @@ function Editor({ diagram }: { diagram: Diagram }) {
         isSaving={editor.isSaving}
         error={editor.error}
         onSave={editor.save}
+        isHistoryOpen={historyOpen}
+        onToggleHistory={() => setHistoryOpen((open) => !open)}
       />
-      {editor.diagram.kind === "SchemaDiagram" ? (
-        <SchemaDiagramEditor
-          content={editor.content}
-          onContentChange={editor.setContent}
-          layout={editor.layout}
-          onLayoutChange={editor.setLayout}
-        />
-      ) : (
-        <GenericDiagramEditor content={editor.content} onContentChange={editor.setContent} />
-      )}
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col">
+          {editor.diagram.kind === "SchemaDiagram" ? (
+            <SchemaDiagramEditor
+              content={editor.content}
+              onContentChange={editor.setContent}
+              layout={editor.layout}
+              onLayoutChange={editor.setLayout}
+            />
+          ) : (
+            <GenericDiagramEditor content={editor.content} onContentChange={editor.setContent} />
+          )}
+        </div>
+        {historyOpen && (
+          <RevisionPanel
+            shareToken={editor.diagram.shareToken}
+            isDirty={editor.isDirty}
+            refreshToken={editor.diagram.updatedAt}
+            onClose={() => setHistoryOpen(false)}
+            onReverted={editor.applyDiagram}
+          />
+        )}
+      </div>
     </div>
   );
 }
