@@ -2,37 +2,47 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, updateDiagram } from "@/lib/api";
-import { Diagram } from "@/lib/types";
+import { layoutsEqual } from "@/lib/layout";
+import { Diagram, DiagramPatch } from "@/lib/types";
 
 export function useDiagramEditor(initial: Diagram) {
   const [diagram, setDiagram] = useState(initial);
   const [content, setContent] = useState(initial.content);
+  const [layout, setLayout] = useState(initial.layout);
   const [lastSavedContent, setLastSavedContent] = useState(initial.content);
+  const [lastSavedLayout, setLastSavedLayout] = useState(initial.layout);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const savingRef = useRef(false);
 
-  const isDirty = content !== lastSavedContent;
+  const contentDirty = content !== lastSavedContent;
+  const layoutDirty = !layoutsEqual(layout, lastSavedLayout);
+  const isDirty = contentDirty || layoutDirty;
 
   const save = useCallback(async () => {
-    if (savingRef.current || content === lastSavedContent) {
+    if (savingRef.current || (!contentDirty && !layoutDirty)) {
       return;
     }
     savingRef.current = true;
     setIsSaving(true);
     setError(null);
     try {
-      const updated = await updateDiagram(diagram.shareToken, { content });
+      const patch: DiagramPatch = {};
+      if (contentDirty) patch.content = content;
+      if (layoutDirty) patch.layout = layout;
+      const updated = await updateDiagram(diagram.shareToken, patch);
       setLastSavedContent(updated.content);
+      setLastSavedLayout(updated.layout);
       setDiagram(updated);
       setContent(updated.content);
+      setLayout(updated.layout);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save");
     } finally {
       savingRef.current = false;
       setIsSaving(false);
     }
-  }, [content, lastSavedContent, diagram.shareToken]);
+  }, [content, contentDirty, layout, layoutDirty, diagram.shareToken]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -56,5 +66,15 @@ export function useDiagramEditor(initial: Diagram) {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  return { diagram, content, setContent, isDirty, isSaving, error, save };
+  return {
+    diagram,
+    content,
+    setContent,
+    layout,
+    setLayout,
+    isDirty,
+    isSaving,
+    error,
+    save,
+  };
 }

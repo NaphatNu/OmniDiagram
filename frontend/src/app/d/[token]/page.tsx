@@ -22,7 +22,12 @@ function Editor({ diagram }: { diagram: Diagram }) {
         onSave={editor.save}
       />
       {editor.diagram.kind === "SchemaDiagram" ? (
-        <SchemaDiagramEditor content={editor.content} onContentChange={editor.setContent} />
+        <SchemaDiagramEditor
+          content={editor.content}
+          onContentChange={editor.setContent}
+          layout={editor.layout}
+          onLayoutChange={editor.setLayout}
+        />
       ) : (
         <GenericDiagramEditor content={editor.content} onContentChange={editor.setContent} />
       )}
