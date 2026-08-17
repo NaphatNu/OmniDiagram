@@ -3,8 +3,13 @@
 import { useEffect, useId, useState } from "react";
 import mermaid from "mermaid";
 
-export function GenericDiagramEditor({ content }: { content: string }) {
-  const [source, setSource] = useState(content);
+export function GenericDiagramEditor({
+  content,
+  onContentChange,
+}: {
+  content: string;
+  onContentChange: (content: string) => void;
+}) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState<string | null>(null);
   const renderId = useId().replace(/:/g, "");
@@ -16,7 +21,7 @@ export function GenericDiagramEditor({ content }: { content: string }) {
   useEffect(() => {
     let cancelled = false;
     mermaid
-      .render(`mermaid-${renderId}`, source)
+      .render(`mermaid-${renderId}`, content)
       .then(({ svg }) => {
         if (!cancelled) {
           setSvg(svg);
@@ -31,13 +36,13 @@ export function GenericDiagramEditor({ content }: { content: string }) {
     return () => {
       cancelled = true;
     };
-  }, [source, renderId]);
+  }, [content, renderId]);
 
   return (
     <div className="grid flex-1 grid-cols-2">
       <textarea
-        value={source}
-        onChange={(e) => setSource(e.target.value)}
+        value={content}
+        onChange={(e) => onContentChange(e.target.value)}
         spellCheck={false}
         className="h-full resize-none border-r border-black/10 bg-transparent p-4 font-mono text-sm outline-none dark:border-white/10"
       />

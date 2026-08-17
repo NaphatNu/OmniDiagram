@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Background,
   Controls,
@@ -48,15 +48,20 @@ function tablesToNodes(dbml: string): { nodes: Node[]; error: string | null } {
   }
 }
 
-export function SchemaDiagramEditor({ content }: { content: string }) {
-  const [dbml, setDbml] = useState(content);
-  const { nodes, error } = useMemo(() => tablesToNodes(dbml), [dbml]);
+export function SchemaDiagramEditor({
+  content,
+  onContentChange,
+}: {
+  content: string;
+  onContentChange: (content: string) => void;
+}) {
+  const { nodes, error } = useMemo(() => tablesToNodes(content), [content]);
 
   return (
     <div className="grid flex-1 grid-cols-2">
       <textarea
-        value={dbml}
-        onChange={(e) => setDbml(e.target.value)}
+        value={content}
+        onChange={(e) => onContentChange(e.target.value)}
         spellCheck={false}
         className="h-full resize-none border-r border-black/10 bg-transparent p-4 font-mono text-sm outline-none dark:border-white/10"
       />
