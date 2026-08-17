@@ -1,7 +1,7 @@
 "use client";
 
 import { notFound } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { EditorHeader } from "@/components/EditorHeader";
 import { RevisionPanel } from "@/components/RevisionPanel";
 import { SchemaDiagramEditor } from "@/components/SchemaDiagramEditor";
@@ -13,20 +13,24 @@ import { Diagram } from "@/lib/types";
 function Editor({ diagram }: { diagram: Diagram }) {
   const editor = useDiagramEditor(diagram);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="flex flex-1 flex-col">
       <EditorHeader
         diagram={editor.diagram}
+        content={editor.content}
         isDirty={editor.isDirty}
         isSaving={editor.isSaving}
         error={editor.error}
         onSave={editor.save}
         isHistoryOpen={historyOpen}
         onToggleHistory={() => setHistoryOpen((open) => !open)}
+        canvasRef={canvasRef}
+        onImport={editor.setContent}
       />
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col">
+        <div ref={canvasRef} className="flex flex-1 flex-col">
           {editor.diagram.kind === "SchemaDiagram" ? (
             <SchemaDiagramEditor
               content={editor.content}

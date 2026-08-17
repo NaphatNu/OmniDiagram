@@ -1,26 +1,36 @@
 "use client";
 
+import { RefObject, useState } from "react";
 import { Diagram } from "@/lib/types";
 import { AppHeader } from "./AppHeader";
+import { ExportMenu } from "./ExportMenu";
+import { ImportDialog } from "./ImportDialog";
 import { KindBadge } from "./KindBadge";
 
 export function EditorHeader({
   diagram,
+  content,
   isDirty,
   isSaving,
   error,
   onSave,
   isHistoryOpen,
   onToggleHistory,
+  canvasRef,
+  onImport,
 }: {
   diagram: Diagram;
+  content: string;
   isDirty: boolean;
   isSaving: boolean;
   error: string | null;
   onSave: () => void;
   isHistoryOpen: boolean;
   onToggleHistory: () => void;
+  canvasRef: RefObject<HTMLDivElement | null>;
+  onImport: (dbml: string) => void;
 }) {
+  const [importOpen, setImportOpen] = useState(false);
   return (
     <AppHeader
       onNavigateAway={(event) => {
@@ -52,12 +62,21 @@ export function EditorHeader({
       >
         History
       </button>
-      <button className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5">
-        Export
-      </button>
+      {diagram.kind === "SchemaDiagram" && (
+        <button
+          onClick={() => setImportOpen(true)}
+          className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"
+        >
+          Import
+        </button>
+      )}
+      <ExportMenu diagram={diagram} content={content} isDirty={isDirty} canvasRef={canvasRef} />
       <button className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5">
         Copy link
       </button>
+      {importOpen && (
+        <ImportDialog onImport={onImport} onClose={() => setImportOpen(false)} />
+      )}
     </AppHeader>
   );
 }
