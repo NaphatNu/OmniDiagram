@@ -42,14 +42,15 @@ Single hostname, path-based:
 
 ## Access control
 
-Cloudflare Access's Path field has no "exact match, root only" mode — an empty Path covers the *whole* hostname including every subpath (see [docs/incidents.md](./incidents.md#2026-08-17--cloudflare-access-exact-match-on--is-not-a-real-path-field-mode-21)). The Dashboard lives at `/dashboard`, not `/`, specifically so its Access app can use a real prefix match instead of a catch-all:
+Cloudflare Access's Path field has no "exact match, root only" mode — an empty Path covers the *whole* hostname including every subpath (see [docs/incidents.md](./incidents.md#2026-08-17--cloudflare-access-exact-match-on--is-not-a-real-path-field-mode-21)). The Dashboard lives at `/dashboard`, not `/`, specifically so its Access app can use a real prefix match instead of a catch-all. A `dashboard/*` Path also does not match the bare `/dashboard` path itself (see [docs/incidents.md](./incidents.md#2026-08-18--cloudflare-access-dashboard-doesnt-match-the-bare-dashboard-path-21)), so the Dashboard needs **two** apps:
 
 | Application | Path | Policy |
 |---|---|---|
+| OmniDiagram Dashboard (root) | `dashboard` | Allow → `tonklanapat@gmail.com` |
 | OmniDiagram Dashboard | `dashboard/*` | Allow → `tonklanapat@gmail.com` |
 | OmniDiagram Admin API | `api/admin/*` | Allow → `tonklanapat@gmail.com` |
 
-Anything without its own Access app (`/`, `/share/*`, `/api/diagrams/*`, `/mcp/*`, `/_next/*`) is public by default — no Bypass apps needed. Verify with a logged-out browser: `/dashboard` must prompt for login, `/share/{token}` must load with no login prompt (and `/` should 307-redirect straight to `/dashboard`, which is what then prompts).
+Anything without its own Access app (`/`, `/share/*`, `/api/diagrams/*`, `/mcp/*`, `/_next/*`) is public by default — no Bypass apps needed. Verify with a logged-out client: `/dashboard` (exactly, no trailing slash) **and** `/dashboard/` must both prompt for login, `/share/{token}` must load with no login prompt (and `/` should 307-redirect straight to `/dashboard`, which is what then prompts). Checking only a subpath or only the bare path is not enough — verify both.
 
 ## Persistence
 
