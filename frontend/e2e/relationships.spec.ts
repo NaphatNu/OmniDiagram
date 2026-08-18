@@ -87,6 +87,40 @@ test("hovering a table highlights its connection and dims unrelated tables", asy
   await expect(unrelated).not.toHaveCSS("opacity", "0.4");
 });
 
+// Regression coverage for the #63 defensive mitigation (onMoveStart/onMoveEnd
+// hover suppression). The reported flicker itself never reproduced under any
+// gesture, so this can't assert against it directly — it asserts the
+// mitigation doesn't leave hover state stuck or broken across a pan gesture.
+test("panning the canvas doesn't leave the hover highlight stuck or broken afterward", async ({ page }) => {
+  await newSchemaDiagram(page);
+  await page.locator("textarea").fill(THREE_TABLE_DBML);
+
+  const orders = page.locator('[data-testid="table-node-orders"]');
+  const customers = page.locator('[data-testid="table-node-customers"]');
+  const unrelated = page.locator('[data-testid="table-node-unrelated"]');
+  const pane = page.locator(".react-flow__pane");
+
+  await orders.hover();
+  await expect(unrelated).toHaveCSS("opacity", "0.4");
+
+  const paneBox = await pane.boundingBox();
+  if (!paneBox) throw new Error("pane has no bounding box");
+  await page.mouse.move(paneBox.x + 20, paneBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(paneBox.x + 150, paneBox.y + 150, { steps: 15 });
+  await page.mouse.up();
+
+  await page.mouse.move(0, 0);
+  await expect(unrelated).not.toHaveCSS("opacity", "0.4");
+
+  await customers.hover();
+  await expect(orders).not.toHaveCSS("opacity", "0.4");
+  await expect(unrelated).toHaveCSS("opacity", "0.4");
+
+  await page.mouse.move(0, 0);
+  await expect(unrelated).not.toHaveCSS("opacity", "0.4");
+});
+
 test("clicking a foreign-key field pans the canvas toward the referenced table and highlights it", async ({
   page,
 }) => {

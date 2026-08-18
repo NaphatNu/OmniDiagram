@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import {
   applyNodeChanges,
   Background,
@@ -128,36 +128,50 @@ function FlowCanvas({
   const [hoveredTable, setHoveredTable] = useState<string | null>(null);
   const [jumpTables, setJumpTables] = useState<Set<string> | null>(null);
   const jumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMovingRef = useRef(false);
 
-  const hoverConnections = hoveredTable ? connectionsForTable(hoveredTable, edges) : null;
-  const highlightedTables = hoverConnections
-    ? new Set([hoveredTable as string, ...hoverConnections.tableNames])
-    : jumpTables;
-  const highlightedEdgeIds = hoverConnections?.edgeIds ?? null;
+  const { highlightedTables, highlightedEdgeIds } = useMemo(() => {
+    if (hoveredTable) {
+      const conn = connectionsForTable(hoveredTable, edges);
+      return {
+        highlightedTables: new Set<string>([hoveredTable, ...conn.tableNames]),
+        highlightedEdgeIds: conn.edgeIds,
+      };
+    }
+    return { highlightedTables: jumpTables, highlightedEdgeIds: null as Set<string> | null };
+  }, [hoveredTable, jumpTables, edges]);
 
-  function handleFieldClick(tableName: string, fieldName: string) {
-    const targets = edgesForField(tableName, fieldName, edges);
-    if (targets.length === 0) {
-      return;
-    }
-    const destinations = new Set<string>();
-    for (const edge of targets) {
-      destinations.add(edge.source === tableName ? edge.target : edge.source);
-    }
-    const firstDestination = getNode([...destinations][0]);
-    if (firstDestination) {
-      setCenter(firstDestination.position.x + 110, firstDestination.position.y + 60, {
-        zoom: 1,
-        duration: 400,
-      });
-    }
-    destinations.add(tableName);
-    setJumpTables(destinations);
-    if (jumpTimeoutRef.current) {
-      clearTimeout(jumpTimeoutRef.current);
-    }
-    jumpTimeoutRef.current = setTimeout(() => setJumpTables(null), 1500);
-  }
+  const handleFieldClick = useCallback(
+    (tableName: string, fieldName: string) => {
+      const targets = edgesForField(tableName, fieldName, edges);
+      if (targets.length === 0) {
+        return;
+      }
+      const destinations = new Set<string>();
+      for (const edge of targets) {
+        destinations.add(edge.source === tableName ? edge.target : edge.source);
+      }
+      const firstDestination = getNode([...destinations][0]);
+      if (firstDestination) {
+        setCenter(firstDestination.position.x + 110, firstDestination.position.y + 60, {
+          zoom: 1,
+          duration: 400,
+        });
+      }
+      destinations.add(tableName);
+      setJumpTables(destinations);
+      if (jumpTimeoutRef.current) {
+        clearTimeout(jumpTimeoutRef.current);
+      }
+      jumpTimeoutRef.current = setTimeout(() => setJumpTables(null), 1500);
+    },
+    [edges, getNode, setCenter],
+  );
+
+  const highlightValue = useMemo(
+    () => ({ highlightedTables, highlightedEdgeIds, onFieldClick: handleFieldClick }),
+    [highlightedTables, highlightedEdgeIds, handleFieldClick],
+  );
 
   // flowEdges only carries data that's stable regardless of hover/click
   // state (cardinalities, type, self-loop), so it — like `nodes` — never
@@ -187,15 +201,35 @@ function FlowCanvas({
   );
 
   return (
-    <HighlightContext.Provider value={{ highlightedTables, highlightedEdgeIds, onFieldClick: handleFieldClick }}>
+    <HighlightContext.Provider value={highlightValue}>
       <ReactFlow
         nodes={nodes}
         edges={flowEdges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
-        onNodeMouseEnter={(_, node) => setHoveredTable(node.id)}
-        onNodeMouseLeave={() => setHoveredTable(null)}
+        // Defensive mitigation for #63 (never reproduced, root cause unconfirmed):
+        // freeze hover-driven highlight changes while the viewport is actively
+        // panning/zooming, so a stationary cursor can't have tables slide underneath
+        // it and flip highlight state. Ignore-only, not clear-on-start — clearing
+        // would pop the highlight off the instant an idle hover's mouse does an
+        // incidental wheel-zoom, which is worse than doing nothing. Also fires
+        // (harmlessly) around the initial fitView and handleFieldClick's setCenter,
+        // both of which go through the same viewport-transform path.
+        onMoveStart={() => {
+          isMovingRef.current = true;
+        }}
+        onMoveEnd={() => {
+          isMovingRef.current = false;
+        }}
+        onNodeMouseEnter={(_, node) => {
+          if (isMovingRef.current) return;
+          setHoveredTable(node.id);
+        }}
+        onNodeMouseLeave={() => {
+          if (isMovingRef.current) return;
+          setHoveredTable(null);
+        }}
         fitView
       >
         <Background />
