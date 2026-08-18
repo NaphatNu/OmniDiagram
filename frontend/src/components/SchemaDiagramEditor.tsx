@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import {
   applyNodeChanges,
   Background,
@@ -129,35 +129,48 @@ function FlowCanvas({
   const [jumpTables, setJumpTables] = useState<Set<string> | null>(null);
   const jumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const hoverConnections = hoveredTable ? connectionsForTable(hoveredTable, edges) : null;
-  const highlightedTables = hoverConnections
-    ? new Set([hoveredTable as string, ...hoverConnections.tableNames])
-    : jumpTables;
-  const highlightedEdgeIds = hoverConnections?.edgeIds ?? null;
+  const { highlightedTables, highlightedEdgeIds } = useMemo(() => {
+    if (hoveredTable) {
+      const conn = connectionsForTable(hoveredTable, edges);
+      return {
+        highlightedTables: new Set<string>([hoveredTable, ...conn.tableNames]),
+        highlightedEdgeIds: conn.edgeIds,
+      };
+    }
+    return { highlightedTables: jumpTables, highlightedEdgeIds: null as Set<string> | null };
+  }, [hoveredTable, jumpTables, edges]);
 
-  function handleFieldClick(tableName: string, fieldName: string) {
-    const targets = edgesForField(tableName, fieldName, edges);
-    if (targets.length === 0) {
-      return;
-    }
-    const destinations = new Set<string>();
-    for (const edge of targets) {
-      destinations.add(edge.source === tableName ? edge.target : edge.source);
-    }
-    const firstDestination = getNode([...destinations][0]);
-    if (firstDestination) {
-      setCenter(firstDestination.position.x + 110, firstDestination.position.y + 60, {
-        zoom: 1,
-        duration: 400,
-      });
-    }
-    destinations.add(tableName);
-    setJumpTables(destinations);
-    if (jumpTimeoutRef.current) {
-      clearTimeout(jumpTimeoutRef.current);
-    }
-    jumpTimeoutRef.current = setTimeout(() => setJumpTables(null), 1500);
-  }
+  const handleFieldClick = useCallback(
+    (tableName: string, fieldName: string) => {
+      const targets = edgesForField(tableName, fieldName, edges);
+      if (targets.length === 0) {
+        return;
+      }
+      const destinations = new Set<string>();
+      for (const edge of targets) {
+        destinations.add(edge.source === tableName ? edge.target : edge.source);
+      }
+      const firstDestination = getNode([...destinations][0]);
+      if (firstDestination) {
+        setCenter(firstDestination.position.x + 110, firstDestination.position.y + 60, {
+          zoom: 1,
+          duration: 400,
+        });
+      }
+      destinations.add(tableName);
+      setJumpTables(destinations);
+      if (jumpTimeoutRef.current) {
+        clearTimeout(jumpTimeoutRef.current);
+      }
+      jumpTimeoutRef.current = setTimeout(() => setJumpTables(null), 1500);
+    },
+    [edges, getNode, setCenter],
+  );
+
+  const highlightValue = useMemo(
+    () => ({ highlightedTables, highlightedEdgeIds, onFieldClick: handleFieldClick }),
+    [highlightedTables, highlightedEdgeIds, handleFieldClick],
+  );
 
   // flowEdges only carries data that's stable regardless of hover/click
   // state (cardinalities, type, self-loop), so it — like `nodes` — never
@@ -187,7 +200,7 @@ function FlowCanvas({
   );
 
   return (
-    <HighlightContext.Provider value={{ highlightedTables, highlightedEdgeIds, onFieldClick: handleFieldClick }}>
+    <HighlightContext.Provider value={highlightValue}>
       <ReactFlow
         nodes={nodes}
         edges={flowEdges}
