@@ -1,6 +1,6 @@
 # Dashboard UX — v1
 
-The Dashboard sits behind Cloudflare Access (see [ADR-0010](./adr/0010-cloudflare-access-guards-dashboard-only.md)) — it enumerates every Diagram, so it is not public. The editor at `/share/{shareToken}` stays public.
+The Dashboard sits behind Caddy Basic Auth (see [ADR-0010](./adr/0010-cloudflare-access-guards-dashboard-only.md)) — it enumerates every Diagram, so it is not public. The editor at `/share/{shareToken}` stays public.
 
 ## Layout
 

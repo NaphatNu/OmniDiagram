@@ -5,6 +5,9 @@ services:
     # The Cloudflare Tunnel (host network) reaches this at localhost:8090.
     ports:
       - "8090:80"
+    environment:
+      ADMIN_BASIC_AUTH_USER: ${ADMIN_BASIC_AUTH_USER}
+      ADMIN_BASIC_AUTH_HASH: ${ADMIN_BASIC_AUTH_HASH}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
