@@ -88,3 +88,15 @@ Binding to target dev.omnidiagram.backend.mcp.McpProperties failed:
 **Fix:** add a second Cloudflare Access application for the same hostname with Path set to exactly `dashboard` (no `/*`), same `Allow → tonklanapat@gmail.com` policy as the existing `dashboard/*` app. Two apps now cover the Dashboard: `dashboard` (exact) and `dashboard/*` (prefix, everything under it) — see `docs/deployment.md`.
 
 **General lesson:** when verifying any path-based access-control layer (Cloudflare Access or otherwise), test the exact boundary path with **no trailing slash and no subpath**, not just a representative subpath — prefix patterns like `x/*` are easy to assume cover `x` itself and often don't.
+
+## 2026-08-18 — Caddy's `handle /mcp/*` never matched the real `/mcp` endpoint (#21)
+
+**Symptom:** while running #21's verification table against the live deployment, `POST https://omnidiagram.tonkla.studio/mcp` (no trailing slash — the actual MCP endpoint, both for the "no API key → 401" and "with API key → works" checks) returned `404` instead of reaching the backend at all. `POST /mcp/` (with a trailing slash nobody would ever actually request) correctly reached the backend and got `401`.
+
+**Root cause:** `Caddyfile`'s `handle /mcp/* { reverse_proxy backend:8080 }` only matches paths that start with `/mcp/` followed by at least one more character — it does not match the bare path `/mcp`. Spring AI's MCP server autoconfiguration (`STREAMABLE` protocol, no `mcp-endpoint` override in `application.yml`) serves the Streamable HTTP endpoint at exactly `/mcp`, with no trailing slash. A request to the real endpoint fell through Caddy's `handle /mcp/*` block entirely and hit the final catch-all `handle { reverse_proxy frontend:3000 }`, which 404'd it as an unknown Next.js route. This is the same class of bug as this file's two Cloudflare Access entries above (a `/*` prefix pattern silently excluding its own bare path) — Caddy's path matcher has the identical gap.
+
+**Why it wasn't caught earlier:** no e2e test or local verification ever exercised the MCP endpoint through Caddy specifically — local dev and the isolated-Docker-network e2e recipe both talk to the backend directly or through a different path, never through this exact Caddyfile. It only surfaced when #21's verification table was run against the real deployment for the first time.
+
+**Fix:** `handle /mcp /mcp/* { reverse_proxy backend:8080 }` — Caddy's path matcher accepts multiple space-separated patterns in one block, so listing the bare path alongside the prefix covers both.
+
+**General lesson:** any reverse-proxy or gateway rule written as `path/*` should be checked against the bare `path` with no trailing slash, the same way as the Cloudflare Access entries above — this has now shown up in two independent systems (Cloudflare Access and Caddy) on the same route shape.
