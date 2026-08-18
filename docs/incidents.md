@@ -43,3 +43,17 @@ PR #50's body contained "Closes #19", so the issue auto-closed the moment #50 me
 ### General lesson
 
 Any future workflow/issue that runs `docker build` for the first time against a directory or cache backend that no prior issue has exercised should expect at least one failure mode invisible from reading the Dockerfile/workflow alone — plan to iterate against a real run, not just a YAML lint.
+
+## 2026-08-17 — Cloudflare Access "exact match on `/`" is not a real Path-field mode (#21)
+
+**Symptom:** while manually configuring the two Access applications from #21's spec, the Dashboard app's "Path (optional)" field has no way to express "root only, no subpaths." Leaving it empty and typing `/` were both tried; neither does what the issue text ("`omnidiagram.tonkla.studio/` — exact match") implies.
+
+**Root cause:** Cloudflare Access's Path field on a self-hosted app's public hostname is purely prefix-based — there is no exact/no-subpaths mode. Confirmed against Cloudflare's own docs (`developers.cloudflare.com/cloudflare-one/access-controls/policies/app-paths`): an **empty Path matches the whole hostname, including every subpath** ("To protect an apex domain and all of the paths under it, leave the Path field empty"). Typing `/` doesn't help either — the UI already renders a separator slash before the Path input, so a literal `/` becomes a second, typed slash; the resulting rule matches a request path of `//`, which real browsers never send, so it silently protects nothing. There is no third option that means "this hostname's root, and only its root."
+
+**Why it wasn't caught earlier:** #21's issue body was written from intent ("exact match") without verifying that Cloudflare's UI actually supports that as a distinct mode — this is dashboard configuration, not code, so nothing in the repo would have surfaced the gap; it only showed up once someone tried to enter the value.
+
+**Fix:** don't try to make the Dashboard app itself path-restricted. Instead, lean on Cloudflare's real mechanism for "protect everything except these specific paths": leave the Dashboard app's Path empty (so it becomes the catch-all `Allow` policy for the whole hostname), then add one **separate self-hosted Access app per path that must stay public** (`/d/*`, `/api/diagrams/*`, `/mcp/*`, `/_next/*`), each with a **Bypass → Everyone** policy, not `Allow`. Cloudflare evaluates the most-specific path first, so each Bypass app wins over the catch-all for its own path and skips the Access login screen entirely — `Allow → Everyone` is a different policy type (still shows a login/Access screen) and would not work here. The `/api/admin/*` app from #21 stays as originally spec'd (`Allow`, specific emails) since it's meant to require login, not bypass it.
+
+**General lesson:** when an issue's spec describes Cloudflare (or any SaaS dashboard) behavior in prose ("exact match", "wildcard", etc.), verify against that product's current docs before configuring — dashboard UI semantics don't show up in a code review and can drift from what the issue author assumed.
+
+**Update:** the Dashboard route was subsequently moved to `/dashboard` (and the share route renamed `/d/{token}` → `/share/{token}`), so the Dashboard's Access app can use a real path-prefix match (`dashboard/*`) rather than the catch-all-plus-Bypass workaround described above — see `docs/deployment.md`.

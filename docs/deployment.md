@@ -42,14 +42,14 @@ Single hostname, path-based:
 
 ## Access control
 
-Two Cloudflare Access applications, both allowing `tonklanapat@gmail.com`:
+Cloudflare Access's Path field has no "exact match, root only" mode — an empty Path covers the *whole* hostname including every subpath (see [docs/incidents.md](./incidents.md#2026-08-17--cloudflare-access-exact-match-on--is-not-a-real-path-field-mode-21)). The Dashboard lives at `/dashboard`, not `/`, specifically so its Access app can use a real prefix match instead of a catch-all:
 
-| Application | Path |
-|---|---|
-| OmniDiagram Dashboard | `omnidiagram.tonkla.studio/` (exact match) |
-| OmniDiagram Admin API | `omnidiagram.tonkla.studio/api/admin/*` |
+| Application | Path | Policy |
+|---|---|---|
+| OmniDiagram Dashboard | `dashboard/*` | Allow → `tonklanapat@gmail.com` |
+| OmniDiagram Admin API | `api/admin/*` | Allow → `tonklanapat@gmail.com` |
 
-Everything else stays public: `/d/*`, `/api/diagrams/*`, `/mcp/*`, `/_next/*`. The Dashboard policy must match `/` exactly — a bare-hostname policy would also cover `/d/*` and break every share link.
+Anything without its own Access app (`/`, `/share/*`, `/api/diagrams/*`, `/mcp/*`, `/_next/*`) is public by default — no Bypass apps needed. Verify with a logged-out browser: `/dashboard` must prompt for login, `/share/{token}` must load with no login prompt (and `/` should 307-redirect straight to `/dashboard`, which is what then prompts).
 
 ## Persistence
 

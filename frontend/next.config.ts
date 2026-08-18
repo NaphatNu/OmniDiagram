@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  async redirects() {
+    return [{ source: "/", destination: "/dashboard", permanent: false }];
+  },
   async rewrites() {
     // In production Caddy proxies /api/admin/* and /api/diagrams/* to the
     // backend directly, so this never runs. It exists so the Next.js server

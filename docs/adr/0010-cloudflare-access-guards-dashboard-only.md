@@ -10,11 +10,11 @@ Because an Access application is defined by hostname and path and cannot match o
 
 | Behind Access | Public |
 |---|---|
-| `GET /` (Dashboard) | `GET /d/{shareToken}` |
+| `GET /dashboard` (Dashboard) | `GET /share/{shareToken}` |
 | `GET /api/admin/diagrams` | `GET /api/diagrams/{shareToken}` |
 | `POST /api/admin/diagrams` | `PUT /api/diagrams/{shareToken}` |
 | `DELETE /api/admin/diagrams/{shareToken}` | `/mcp/*` (static API key), `/_next/*` |
 
 ## Consequences
 
-Anyone with a share link can still read and overwrite that Diagram, and `/mcp/*` still faces the internet behind nothing but a static key — so that key is now a genuine internet-facing secret rather than a LAN formality. Enforcement lives at Cloudflare, not in the app: reaching the backend by any path that bypasses the tunnel bypasses Access entirely, and running the stack locally means no protection at all. The Access policy for the Dashboard must match `/` exactly; matching the bare hostname would swallow `/d/*` and break every share link.
+Anyone with a share link can still read and overwrite that Diagram, and `/mcp/*` still faces the internet behind nothing but a static key — so that key is now a genuine internet-facing secret rather than a LAN formality. Enforcement lives at Cloudflare, not in the app: reaching the backend by any path that bypasses the tunnel bypasses Access entirely, and running the stack locally means no protection at all. The Access policy for the Dashboard is scoped to the `/dashboard` path prefix; matching the bare hostname would swallow `/share/*` and break every share link.

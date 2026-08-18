@@ -10,10 +10,10 @@ async function dragNode(page: Page, node: Locator, dx: number, dy: number) {
 }
 
 async function newSchemaDiagram(page: Page) {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 }
 
 test("a Ref renders as an edge anchored at the two related tables", async ({ page }) => {
@@ -143,7 +143,7 @@ test("dragging a table still works after hovering it (hover doesn't swallow the 
   request,
 }) => {
   await newSchemaDiagram(page);
-  const token = page.url().split("/d/")[1];
+  const token = page.url().split("/share/")[1];
   await page.locator("textarea").fill(THREE_TABLE_DBML);
 
   const orders = page.locator('[data-testid="table-node-orders"]');

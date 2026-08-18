@@ -10,11 +10,11 @@ async function dragNode(page: Page, node: Locator, dx: number, dy: number) {
 }
 
 test("drag a table, save, reload, and the position persists", async ({ page, request }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
-  const token = page.url().split("/d/")[1];
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
+  const token = page.url().split("/share/")[1];
 
   const node = page.locator(".react-flow__node").first();
   await expect(node).toBeVisible();
@@ -42,10 +42,10 @@ test("drag a table, save, reload, and the position persists", async ({ page, req
 });
 
 test("adding a table to the DBML keeps existing tables' positions", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   const node = page.locator(".react-flow__node").first();
   await expect(node).toBeVisible();

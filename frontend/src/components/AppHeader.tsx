@@ -11,7 +11,7 @@ export function AppHeader({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-black/10 px-4 dark:border-white/10">
       <Link
-        href="/"
+        href="/dashboard"
         onNavigate={onNavigateAway}
         className="text-sm font-semibold tracking-tight"
       >

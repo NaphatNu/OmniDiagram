@@ -13,11 +13,11 @@ test("revert restores content and layout together and appends rather than rewind
   page,
   request,
 }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
-  const token = page.url().split("/d/")[1];
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
+  const token = page.url().split("/share/")[1];
 
   const textarea = page.locator("textarea");
   const node = page.locator(".react-flow__node").first();
@@ -63,20 +63,20 @@ test("revert restores content and layout together and appends rather than rewind
 });
 
 test("history panel shows empty state before any save", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   await page.getByRole("button", { name: "History" }).click();
   await expect(page.getByText("No previous versions yet")).toBeVisible();
 });
 
 test("reverting with unsaved changes warns before discarding them", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await page.getByRole("button", { name: "New Diagram" }).click();
   await page.getByRole("button", { name: "SchemaDiagram" }).click();
-  await expect(page).toHaveURL(/\/d\/[^/]+$/);
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
 
   const textarea = page.locator("textarea");
   await textarea.fill("Table table_name {\n  id integer [primary key]\n  note varchar\n}\n");
