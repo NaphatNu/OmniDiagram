@@ -7,8 +7,12 @@ import { ExportMenu } from "./ExportMenu";
 import { ImportDialog } from "./ImportDialog";
 import { KindBadge } from "./KindBadge";
 
+const DEFAULT_TITLE = "Untitled diagram";
+
 export function EditorHeader({
   diagram,
+  title,
+  onTitleChange,
   content,
   isDirty,
   isSaving,
@@ -20,6 +24,8 @@ export function EditorHeader({
   onImport,
 }: {
   diagram: Diagram;
+  title: string;
+  onTitleChange: (title: string) => void;
   content: string;
   isDirty: boolean;
   isSaving: boolean;
@@ -31,6 +37,25 @@ export function EditorHeader({
   onImport: (dbml: string) => void;
 }) {
   const [importOpen, setImportOpen] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(title);
+
+  function startEditingTitle() {
+    setTitleDraft(title);
+    setIsEditingTitle(true);
+  }
+
+  function commitTitle() {
+    const next = titleDraft.trim() === "" ? DEFAULT_TITLE : titleDraft.trim();
+    onTitleChange(next);
+    setIsEditingTitle(false);
+  }
+
+  function cancelEditingTitle() {
+    setTitleDraft(title);
+    setIsEditingTitle(false);
+  }
+
   return (
     <AppHeader
       onNavigateAway={(event) => {
@@ -39,7 +64,27 @@ export function EditorHeader({
         }
       }}
     >
-      <span className="text-sm font-medium">{diagram.title}</span>
+      {isEditingTitle ? (
+        <input
+          value={titleDraft}
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") cancelEditingTitle();
+          }}
+          autoFocus
+          className="rounded-md border border-black/10 bg-transparent px-2 py-1 text-sm font-medium outline-none dark:border-white/10"
+        />
+      ) : (
+        <span className="text-sm font-medium">{title}</span>
+      )}
+      <button
+        onClick={startEditingTitle}
+        className="text-xs font-medium hover:underline"
+      >
+        Rename
+      </button>
       <KindBadge kind={diagram.kind} />
       {error ? (
         <span className="text-xs text-red-600 dark:text-red-400">{error}</span>

@@ -43,7 +43,7 @@ export default function Dashboard() {
         ) : (
           <div className="rounded-lg border border-black/10 dark:border-white/10">
             {diagrams.map((diagram) => (
-              <DiagramRow key={diagram.shareToken} diagram={diagram} onDeleted={load} />
+              <DiagramRow key={diagram.shareToken} diagram={diagram} onDeleted={load} onRenamed={load} />
             ))}
           </div>
         )}
