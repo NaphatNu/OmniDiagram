@@ -57,3 +57,22 @@ Any future workflow/issue that runs `docker build` for the first time against a 
 **General lesson:** when an issue's spec describes Cloudflare (or any SaaS dashboard) behavior in prose ("exact match", "wildcard", etc.), verify against that product's current docs before configuring — dashboard UI semantics don't show up in a code review and can drift from what the issue author assumed.
 
 **Update:** the Dashboard route was subsequently moved to `/dashboard` (and the share route renamed `/d/{token}` → `/share/{token}`), so the Dashboard's Access app can use a real path-prefix match (`dashboard/*`) rather than the catch-all-plus-Bypass workaround described above — see `docs/deployment.md`.
+
+## 2026-08-17 — First self-hosted runner deploy: `actions/checkout` wiped a manually pre-seeded `.env` despite `clean: false` (#20)
+
+**Symptom:** the first-ever `deploy.yml` run (once the self-hosted runner finally came online — see #20's runner-registration steps) failed with the backend crashing on boot:
+```
+Binding to target dev.omnidiagram.backend.mcp.McpProperties failed:
+    Property: mcp.apiKey
+    Value: ""
+    Reason: must not be blank
+```
+`omnidiagram-postgres-1` was also crash-looping with `Database is uninitialized and superuser password is not specified.` Both point at the same cause: every variable in `.env` read as empty by `docker compose`.
+
+**Root cause:** before the runner had ever executed a real job, its work directory (`_work/OmniDiagram/OmniDiagram`) didn't exist yet, so `.env` couldn't be dropped in per `docs/deployment.md`'s step 2 ("create the `.env` file in that runner's checkout directory"). To work around the chicken-and-egg problem, the directory was pre-created by hand with a plain `git clone` and `.env` written into it *before* the runner's first job ran. When the actual `deploy.yml` job executed, `actions/checkout@v4` didn't recognize this manually-created `.git` as a trustworthy match for its expected state and did a full fresh checkout — which **replaces the entire working directory contents**, including untracked files, before the `clean: false` input ever comes into play. `clean: false` only skips the *post-checkout* `git clean -ffdx` step on an *existing, checkout-managed* repo; it does nothing to protect a directory checkout doesn't already recognize as its own. The `.env` written by hand was gone by the time `deploy.sh` ran.
+
+**Why it wasn't caught earlier:** this is a first-run-only failure mode — every subsequent deploy reuses the same directory, which by then *is* a real `actions/checkout`-managed clone, so `clean: false` behaves as documented and `.env` survives normally. Nothing in local testing (Docker Compose run directly, e2e against a hand-built image) ever exercises `actions/checkout`'s repo-identity check, so this gap was invisible until the very first self-hosted job actually ran.
+
+**Fix:** don't pre-seed `.env` via a manual `git clone` before the runner's first job. Instead: register + start the runner, let its first `deploy.yml` job run (or fail) to produce a real `actions/checkout`-managed directory, *then* write `.env` into that now-trusted checkout and re-run the job (`gh run rerun <run-id>`) — or, if a failure already happened and left containers crash-looping with blank env vars on a live host, recreate `.env` in place and `docker compose up -d --force-recreate` to recover immediately, then still re-run the workflow once so GitHub's own run history reflects a real, unassisted success rather than a manually-patched one.
+
+**General lesson:** `actions/checkout`'s `clean` input only governs cleanup of a repo it already trusts — it is not a guarantee that arbitrary pre-existing directory contents survive. Never hand-seed a self-hosted runner's future checkout directory before that directory has been through at least one real `actions/checkout` run.
