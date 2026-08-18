@@ -4,6 +4,14 @@
 		respond 404
 	}
 
+	# Dashboard and admin API are the only things behind a login; everything else is public.
+	handle /api/admin/* {
+		basic_auth {
+			{$ADMIN_BASIC_AUTH_USER} {$ADMIN_BASIC_AUTH_HASH}
+		}
+		reverse_proxy backend:8080
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8080
 	}
@@ -14,6 +22,20 @@
 
 	handle /mcp/* {
 		reverse_proxy backend:8080
+	}
+
+	handle /dashboard {
+		basic_auth {
+			{$ADMIN_BASIC_AUTH_USER} {$ADMIN_BASIC_AUTH_HASH}
+		}
+		reverse_proxy frontend:3000
+	}
+
+	handle /dashboard/* {
+		basic_auth {
+			{$ADMIN_BASIC_AUTH_USER} {$ADMIN_BASIC_AUTH_HASH}
+		}
+		reverse_proxy frontend:3000
 	}
 
 	handle {
