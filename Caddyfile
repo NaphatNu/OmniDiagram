@@ -8,7 +8,11 @@
 		reverse_proxy backend:8080
 	}
 
-	handle /mcp /mcp/* {
+	handle /mcp {
+		reverse_proxy backend:8080
+	}
+
+	handle /mcp/* {
 		reverse_proxy backend:8080
 	}
 
