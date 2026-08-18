@@ -6,13 +6,6 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# TEMPORARY one-off fix, remove after this deploy: the ADMIN_BASIC_AUTH_HASH
-# written to .env by hand wasn't escaped for Compose's own `$` interpolation
-# in .env values, corrupting the bcrypt hash before it ever reached Caddy.
-# Reissuing it here (this runner is the only thing with write access to .env).
-sed -i '/^ADMIN_BASIC_AUTH_USER=/d;/^ADMIN_BASIC_AUTH_HASH=/d' .env
-printf 'ADMIN_BASIC_AUTH_USER=admin\nADMIN_BASIC_AUTH_HASH=$$2a$$14$$u/QyBk6dez2iGB8T1aSvhuNWnT8I3U/EO2FWNjUl2Ncc4pyr3tWRa\n' >> .env
-
 docker compose pull
 docker compose up -d
 # caddy's image/config in compose never changes, so `up -d` won't recreate
