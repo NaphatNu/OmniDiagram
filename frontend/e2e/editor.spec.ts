@@ -37,3 +37,26 @@ test("navigating away with unsaved changes warns first", async ({ page }) => {
   expect(dialogMessage).toContain("unsaved changes");
   await expect(page).toHaveURL(/\/share\/[^/]+$/);
 });
+
+test("renaming the title in the editor header requires Save, and persists after reload", async ({
+  page,
+}) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "New Diagram" }).click();
+  await page.getByRole("button", { name: "SchemaDiagram" }).click();
+  await expect(page).toHaveURL(/\/share\/[^/]+$/);
+
+  await page.getByRole("button", { name: "Rename" }).click();
+  const input = page.locator("input").first();
+  await input.fill("Renamed in editor");
+  await input.press("Tab");
+
+  // Committing the title marks the diagram dirty but does not save it yet.
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText("Renamed in editor")).toBeVisible();
+});

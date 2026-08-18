@@ -129,6 +129,37 @@ describe("useDiagramEditor", () => {
     expect(result.current.isDirty).toBe(false);
   });
 
+  it("marks dirty when the title changes", () => {
+    const { result } = renderHook(() => useDiagramEditor(initial));
+    act(() => result.current.setTitle("New title"));
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("sends only the title when only the title changed", async () => {
+    vi.mocked(updateDiagram).mockResolvedValue({ ...initial, title: "New title" });
+    const { result } = renderHook(() => useDiagramEditor(initial));
+    act(() => result.current.setTitle("New title"));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(updateDiagram).toHaveBeenCalledWith("abc", { title: "New title" });
+    expect(result.current.isDirty).toBe(false);
+  });
+
+  it("falls back to 'Untitled diagram' when saved blank", async () => {
+    vi.mocked(updateDiagram).mockResolvedValue({ ...initial, title: "Untitled diagram" });
+    const { result } = renderHook(() => useDiagramEditor(initial));
+    act(() => result.current.setTitle("   "));
+
+    await act(async () => {
+      await result.current.save();
+    });
+
+    expect(updateDiagram).toHaveBeenCalledWith("abc", { title: "Untitled diagram" });
+  });
+
   it("applyDiagram replaces content and layout and clears dirty state", () => {
     const { result } = renderHook(() => useDiagramEditor(initial));
     act(() => result.current.setContent("changed"));

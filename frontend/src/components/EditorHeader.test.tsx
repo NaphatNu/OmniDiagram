@@ -18,6 +18,8 @@ function renderHeader(overrides: Partial<Parameters<typeof EditorHeader>[0]> = {
   return render(
     <EditorHeader
       diagram={diagram}
+      title={diagram.title}
+      onTitleChange={vi.fn()}
       content={diagram.content}
       isDirty={false}
       isSaving={false}
@@ -77,5 +79,42 @@ describe("EditorHeader", () => {
     renderHeader();
     fireEvent.click(screen.getByText("Import"));
     expect(screen.getByPlaceholderText("Paste CREATE TABLE statements...")).toBeInTheDocument();
+  });
+
+  it("renames via the Rename button, committing on blur", () => {
+    const onTitleChange = vi.fn();
+    renderHeader({ onTitleChange });
+    fireEvent.click(screen.getByText("Rename"));
+
+    const input = screen.getByDisplayValue("Orders");
+    fireEvent.change(input, { target: { value: "Renamed" } });
+    fireEvent.blur(input);
+
+    expect(onTitleChange).toHaveBeenCalledWith("Renamed");
+  });
+
+  it("falls back to 'Untitled diagram' when committed blank", () => {
+    const onTitleChange = vi.fn();
+    renderHeader({ onTitleChange });
+    fireEvent.click(screen.getByText("Rename"));
+
+    const input = screen.getByDisplayValue("Orders");
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.blur(input);
+
+    expect(onTitleChange).toHaveBeenCalledWith("Untitled diagram");
+  });
+
+  it("cancels editing on Escape without committing", () => {
+    const onTitleChange = vi.fn();
+    renderHeader({ onTitleChange });
+    fireEvent.click(screen.getByText("Rename"));
+
+    const input = screen.getByDisplayValue("Orders");
+    fireEvent.change(input, { target: { value: "Something else" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(onTitleChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Orders")).toBeInTheDocument();
   });
 });

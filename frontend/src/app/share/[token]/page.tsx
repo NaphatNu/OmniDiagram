@@ -19,6 +19,8 @@ function Editor({ diagram }: { diagram: Diagram }) {
     <div className="flex flex-1 flex-col">
       <EditorHeader
         diagram={editor.diagram}
+        title={editor.title}
+        onTitleChange={editor.setTitle}
         content={editor.content}
         isDirty={editor.isDirty}
         isSaving={editor.isSaving}
