@@ -64,7 +64,7 @@ ADMIN_BASIC_AUTH_USER=
 ADMIN_BASIC_AUTH_HASH=
 ```
 
-`MCP_API_KEY` and `ADMIN_BASIC_AUTH_USER`/`ADMIN_BASIC_AUTH_HASH` are internet-facing (see ADR-0010) — treat them as real secrets, not a LAN formality. Generate the Basic Auth hash with `docker run --rm caddy:2-alpine caddy hash-password --plaintext '<password>'`; only the bcrypt hash goes in `.env`, never the plaintext password.
+`MCP_API_KEY` and `ADMIN_BASIC_AUTH_USER`/`ADMIN_BASIC_AUTH_HASH` are internet-facing (see ADR-0010) — treat them as real secrets, not a LAN formality. Generate the Basic Auth hash with `docker run --rm caddy:2-alpine caddy hash-password --plaintext '<password>'`; only the bcrypt hash goes in `.env`, never the plaintext password. **Double every `$` in the hash to `$$`** before writing it to `.env` — Compose interpolates `$` in `.env` values itself and silently corrupts anything that looks like a variable reference (bcrypt hashes are full of `$`); see [docs/incidents.md](./incidents.md#2026-08-18--docker-compose-silently-corrupts--in-env-values-admin_basic_auth_hash-21).
 
 ## CI/CD
 
