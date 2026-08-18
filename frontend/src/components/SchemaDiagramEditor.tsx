@@ -128,6 +128,7 @@ function FlowCanvas({
   const [hoveredTable, setHoveredTable] = useState<string | null>(null);
   const [jumpTables, setJumpTables] = useState<Set<string> | null>(null);
   const jumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMovingRef = useRef(false);
 
   const { highlightedTables, highlightedEdgeIds } = useMemo(() => {
     if (hoveredTable) {
@@ -207,8 +208,28 @@ function FlowCanvas({
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
-        onNodeMouseEnter={(_, node) => setHoveredTable(node.id)}
-        onNodeMouseLeave={() => setHoveredTable(null)}
+        // Defensive mitigation for #63 (never reproduced, root cause unconfirmed):
+        // freeze hover-driven highlight changes while the viewport is actively
+        // panning/zooming, so a stationary cursor can't have tables slide underneath
+        // it and flip highlight state. Ignore-only, not clear-on-start — clearing
+        // would pop the highlight off the instant an idle hover's mouse does an
+        // incidental wheel-zoom, which is worse than doing nothing. Also fires
+        // (harmlessly) around the initial fitView and handleFieldClick's setCenter,
+        // both of which go through the same viewport-transform path.
+        onMoveStart={() => {
+          isMovingRef.current = true;
+        }}
+        onMoveEnd={() => {
+          isMovingRef.current = false;
+        }}
+        onNodeMouseEnter={(_, node) => {
+          if (isMovingRef.current) return;
+          setHoveredTable(node.id);
+        }}
+        onNodeMouseLeave={() => {
+          if (isMovingRef.current) return;
+          setHoveredTable(null);
+        }}
         fitView
       >
         <Background />
