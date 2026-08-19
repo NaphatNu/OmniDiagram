@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --table-border-idle: rgba(0, 0, 0, 0.1);
 }
 
 @theme inline {
@@ -16,6 +17,7 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --table-border-idle: rgba(255, 255, 255, 0.15);
   }
 }
 
