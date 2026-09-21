@@ -140,3 +140,37 @@ Two approaches were considered and rejected in favor of the above: (a) collapse 
 **Fix:** escape every literal `$` in a `.env` value as `$$` — standard Compose escaping, confirmed by testing both the broken and escaped forms in isolation before touching the live host again. `.env.example` and `docs/deployment.md` now say so explicitly for `ADMIN_BASIC_AUTH_HASH`. The live `.env` itself couldn't be hand-edited this time either (same permission wall as always — see the `.env`-wipe entry above, and neither the user nor Claude had a session at the physical/SSH-accessible host at the time), so the fix was reissued as a one-off step in `deploy.sh` — this runner is the only thing with write access to `.env` — then removed again in a follow-up PR once a real end-to-end `curl -u` against the live domain confirmed `401` with no/wrong credentials and `200` plus successful create/delete with the correct ones.
 
 **General lesson:** any secret or generated value that might contain `$` (bcrypt/htpasswd hashes, JWTs, some base64 output) needs `$$`-escaping before it goes in a Compose `.env` file — this is a Compose-wide gotcha, not specific to Caddy or Basic Auth, and will bite the next `$`-shaped secret this project adds too.
+
+## 2026-09-21 — `gh run watch --exit-status` reported success for a failed run (#71)
+
+**Symptom:** while waiting on the CI run for #71, `gh run watch 35559302939 --exit-status` terminated with exit code 0 and its tail output ended in an ordinary annotations block. Reading that as success was wrong: `gh run view 35559302939 --json conclusion` returned `failure`, with `frontend: failure` and `backend: success`.
+
+**Root cause:** not fully established from the outside, and deliberately not chased further — what matters is that the exit code and the run's recorded conclusion disagreed. The run had jobs in mixed states (two real jobs, two `skipped` by `if:` conditions) and was being watched from the moment it started. Whatever the mechanism, the watch command's exit status is not a trustworthy proxy for the run's conclusion.
+
+**Why it wasn't caught earlier:** nothing in this repo had scripted around `gh run watch` before; CI results were read off the web UI or from a PR's check list, where a failure is impossible to miss.
+
+**Fix:** never branch on `gh run watch`'s exit code. Wait with it if convenient, then read the verdict separately and explicitly:
+
+```bash
+gh run watch "$RUN_ID" >/dev/null 2>&1
+gh run view "$RUN_ID" --json conclusion -q .conclusion   # success | failure | cancelled
+```
+
+**General lesson:** a "wait for X" command and a "what happened to X" command are different questions, and CLI tools do not always answer the second one through their exit status. Any automation that gates on CI — including anything added to the deploy pipeline later — must read the conclusion field, because the failure mode here is a false green, which is the one direction that never announces itself.
+
+## 2026-09-21 — `revisions.spec.ts` e2e is flaky, and deploys now depend on it (#71)
+
+**Symptom:** the first CI run for #71 failed with `1 failed, 1 flaky, 23 passed`:
+
+- `revisions.spec.ts:75 reverting with unsaved changes warns before discarding them` — failed, including its retry, on `expect(page.getByText("Unsaved changes")).toBeVisible()`
+- `revisions.spec.ts:12 revert restores content and layout together and appends rather than rewinds history` — failed on `expect(layoutAtA).toBeDefined()` for a `GET /api/diagrams/{token}` response, then passed on retry
+
+Re-running the failed job with no changes produced `frontend: success`. Both failures are in `revisions.spec.ts`; nothing else in the suite moved.
+
+**Root cause:** not diagnosed — a rerun of identical code passed, so this is timing sensitivity in those two tests rather than a defect the branch introduced. The branch's diff touches only `.github/workflows/`, `compose.dev.yml`, `docker-compose.yml` and the `Caddyfile` path, with no file under `frontend/` or `backend/`. The last green run on `main` was `3833d3e` on 2026-08-19, the same commit this branch forked from, and nothing was pushed in the month between — so the variables that changed are environmental: `ubuntu-latest`, `node-version: 22` and `postgres:17-alpine` are all floating tags that moved underneath an unchanged test suite.
+
+**Why it matters more now than it did before:** until #71, `release.yml` and `ci.yml` triggered independently, so a red suite never stopped a build, a push or a deploy. #71 makes `release` and `bump-deploy-repo` depend on both test jobs. That is the intended behaviour, but it converts e2e flakiness from an annoyance into something that can intermittently block production deploys — and, worse, make a deploy's success look like a property of the change being deployed.
+
+**Fix:** none yet; the run was re-run and #71 merged on the evidence above. Tracked separately from the deploy migration on purpose, so that a test-stability problem is not fixed inside a CI-restructuring change.
+
+**General lesson:** gating deploys on a test suite raises the cost of every flaky test in it, so the two changes belong together in planning even when they are separate in execution. When CI fails on a branch, establish first whether the diff can reach the failing code at all — `git diff --name-only main...HEAD` answered that in one command here and made the rerun a confirmation rather than a guess.
