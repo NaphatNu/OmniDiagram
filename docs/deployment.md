@@ -53,7 +53,9 @@ Access control now lives entirely in Caddy: a `basic_auth` block wraps `/dashboa
 
 ## Secrets
 
-Single `.env` file at the compose root, gitignored. An `.env.example` template lists the required keys without values:
+Production secrets live as stack environment variables in Portainer on `kla-server`, never in either repo. `home-server-deploy/stacks/omnidiagram/.env.example` lists which variable belongs where; `compose.yml` guards each one with `${VAR:?}` so a missing value fails the deploy with a message naming it instead of starting a half-configured container.
+
+Locally, `compose.dev.yml` has working defaults for everything, so an `.env` file is optional. If you want one, it goes at the repo root, is gitignored, and takes the same keys:
 
 ```
 POSTGRES_USER=
@@ -68,16 +70,28 @@ ADMIN_BASIC_AUTH_HASH=
 
 ## CI/CD
 
-- Pull requests run on GitHub-hosted runners: lint, typecheck, Vitest, Playwright, and `mvn verify` (Testcontainers).
-- Pushes to `main` build images and push them to GHCR (`release.yml`), then `deploy.yml` runs on a self-hosted runner on `kla-server`.
-- `deploy.yml` triggers on `workflow_run` after `release.yml` completes on `main` (not on `push` directly) so the deploy never races a build still pushing images. It never triggers on `pull_request` — a fork PR must never execute on the self-hosted runner.
-- `deploy.sh` (repo root) does the actual work: `docker compose pull`, `docker compose up -d`, poll the backend's `/actuator/health` (inside the compose network, via `docker compose exec`) for up to 60s, fail loudly if it never comes up, then `docker image prune -f`. It can also be run by hand from the compose root.
+Everything runs on GitHub-hosted runners. There is no self-hosted runner and nothing in this repo executes on `kla-server`.
 
-### Self-hosted runner setup (manual, once)
+`ci.yml` is one pipeline, linked with `needs:`, so a red test suite stops the change from going anywhere:
 
-Public repos must not run untrusted code on a self-hosted runner, so the whole design routes around that: `deploy.yml` only ever fires via `workflow_run` off `release.yml`, which itself only runs on `push` to `main`, and `main` requires review. Also enable **require approval for workflow runs from outside collaborators** in repo Settings → Actions.
+```
+frontend ─┐
+          ├─→ release ─→ bump-deploy-repo
+backend  ─┘
+```
 
-1. Settings → Actions → Runners → add a runner, install it on `kla-server` as a service running under a **dedicated, non-root user** with Docker access, in a work directory outside the other stacks' directories (`sdvd-*`, `retirement-planner-app`, `cloudflare-tunnel`).
-2. Before the first deploy, create the `.env` file in that runner's checkout directory (it becomes the compose root — see [Secrets](#secrets)). It's gitignored and never comes from CI.
-3. `docker login ghcr.io` isn't needed on the host itself — `deploy.yml` logs in with `GITHUB_TOKEN` before calling `deploy.sh`.
-4. The `actions/checkout` step in `deploy.yml` runs with `clean: false`: the checkout directory is reused as the compose root across runs, and the default `git clean -ffdx` would otherwise delete the untracked `.env` and the `./data/postgres` bind mount (the live database) on every deploy.
+- **frontend / backend** — lint, typecheck, Vitest, Playwright, and `mvn verify` (Testcontainers). These run on pull requests too.
+- **release** — `push` events only. Builds both images and pushes them to GHCR tagged `sha-<short>`; a `vX.Y.Z` tag push also publishes the bare version. There is no `latest`: an image tag has to identify one build, or "which version is running" has no answer.
+- **bump-deploy-repo** — `refs/heads/main` only. Commits the new `IMAGE_TAG` and a copy of `caddy/Caddyfile` into [`home-server-deploy`](https://github.com/NaphatNu/home-server-deploy) at `stacks/omnidiagram/`. Routing rules travel with the image that expects them, in one commit.
+
+Deployment itself is a pull, not a push: Portainer on `kla-server` polls that repo every few minutes and applies what it finds. Nothing here reaches the host, and the host accepts no inbound connection — `ufw` denies incoming, so a webhook could not arrive even if one were configured.
+
+Docs-only changes are skipped via `paths-ignore` (`**.md`, `docs/**`). Without it, editing a file like this one produces a new image and a deploy-repo commit announcing a version that contains no code change.
+
+### Rolling back
+
+Edit `IMAGE_TAG` in `home-server-deploy/stacks/omnidiagram/.env` to any tag that exists in GHCR and commit — on github.com is fine. Portainer picks it up on its next poll. `git log` on that repo is the deploy history, which is also why the tag must never be set in Portainer's UI: a value set there overrides the file permanently, and CI would then keep committing tags that silently never take effect.
+
+### Security of the deploy credential
+
+`bump-deploy-repo` declares `environment: production`, which holds the only token that can write the deploy repo. That environment is restricted to `main`, and GitHub evaluates the restriction against the run's `GITHUB_REF` — `refs/pull/N/merge` for pull requests. A branch that edits the workflow to print the token therefore cannot obtain it, and the rule is enforced server-side rather than by anything in the workflow file. Keep **require approval for workflow runs from outside collaborators** enabled in Settings → Actions, and if this repo ever gains collaborators, add required reviewers to the environment so every deploy needs an approval.

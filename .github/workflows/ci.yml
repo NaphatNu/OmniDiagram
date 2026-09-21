@@ -9,11 +9,19 @@
 
 name: CI
 
+# paths-ignore: การแก้เอกสารอย่างเดียวไม่ควรได้ image ใหม่และไม่ควรสร้าง commit
+# ใน deploy repo — commit นั้นจะอ่านเหมือนว่ามีเวอร์ชันใหม่ของแอปทั้งที่ไม่มีอะไรเปลี่ยน
+# (เกิดขึ้นจริงครั้งหนึ่ง: push แก้ docs/incidents.md ได้ image sha-cb97028 มาเปล่าๆ)
+# จะข้ามก็ต่อเมื่อไฟล์ที่เปลี่ยน "ทั้งหมด" เข้าเงื่อนไข — แก้ทั้งโค้ดและ docs ยังรันปกติ
 on:
   pull_request:
+    paths-ignore: &docs
+      - '**.md'
+      - 'docs/**'
   push:
     branches: [main]
     tags: ['v*']          # ติด tag v1.2.0 → ได้ image tag 1.2.0 เพิ่ม (ไม่ deploy)
+    paths-ignore: *docs
 
 jobs:
   # ─────────────────────────────────────────────────────────────
