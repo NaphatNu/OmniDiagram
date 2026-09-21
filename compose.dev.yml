@@ -1,0 +1,70 @@
+# OmniDiagram — สำหรับพัฒนาในเครื่องตัวเองเท่านั้น
+#
+# ตั้งชื่อ compose.dev.yml ไม่ใช่ docker-compose.yml โดยตั้งใจ:
+# ชื่อ default ทำให้ใครก็สั่ง `docker compose up` ในโฟลเดอร์นี้ได้ทันที "รวมถึงบนเครื่อง server"
+# ซึ่งเป็นรูปแบบเดียวกับที่ทำให้ postgres ของ production ไปอยู่ในโฟลเดอร์ checkout ของ
+# GitHub runner มาแล้ว ⇒ บังคับให้ต้องพิมพ์ -f เอง จะได้รู้ตัวว่ากำลังรันอะไร
+#
+#   docker compose -f compose.dev.yml up --build
+#
+# ของ production อยู่คนละที่: NaphatNu/home-server-deploy → stacks/omnidiagram/compose.yml
+# ไฟล์นี้ไม่มี image: จาก GHCR โดยตั้งใจ — dev ต้อง build จากโค้ดที่แก้อยู่ ไม่ใช่ดึงของเก่ามารัน
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --watch
+    ports:
+      - "8090:80"
+    environment:
+      # dev ใช้ค่า default ได้ — prod บังคับผ่าน ${VAR:?} ใน deploy repo
+      ADMIN_BASIC_AUTH_USER: ${ADMIN_BASIC_AUTH_USER:-admin}
+      # bcrypt ของคำว่า "admin" — ใช้ได้เฉพาะ dev
+      ADMIN_BASIC_AUTH_HASH: ${ADMIN_BASIC_AUTH_HASH:-$$2a$$14$$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hxUOm/W8Aqhqy}
+    volumes:
+      # mount โฟลเดอร์ ไม่ใช่ไฟล์เดี่ยว — bind mount ของไฟล์ผูกกับ inode พอแก้ไฟล์
+      # ด้วย editor ที่เขียนไฟล์ใหม่ (หรือ git checkout) container จะเห็นของเก่าตลอดไป
+      - ./caddy:/etc/caddy:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      FRONTEND_INTERNAL_URL: http://frontend:3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-omnidiagram}
+      POSTGRES_USER: ${POSTGRES_USER:-omnidiagram}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omnidiagram}
+      MCP_API_KEY: ${MCP_API_KEY:-dev-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-omnidiagram}
+      POSTGRES_USER: ${POSTGRES_USER:-omnidiagram}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omnidiagram}
+    volumes:
+      # named volume ไม่ใช่ ./data/postgres — path แบบ ./ แปลว่า "ที่ไหนก็ตามที่ไฟล์นี้วางอยู่"
+      # ซึ่งคือต้นเหตุที่ DB ของ production เคยไปโผล่ในโฟลเดอร์ของ GitHub runner
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-omnidiagram}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

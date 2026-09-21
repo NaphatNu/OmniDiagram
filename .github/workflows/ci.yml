@@ -1,11 +1,24 @@
+# Pipeline เดียวจบ: test → build/push → บอก deploy repo ว่าให้ใช้ tag ไหน
+#
+# เดิมแยกเป็น 3 ไฟล์ (ci.yml / release.yml / deploy.yml) ที่ trigger อิสระจากกัน
+# ⇒ release.yml ไม่เคยรอ ci.yml ⇒ โค้ดที่ test ไม่ผ่านก็ถูก build, push และ deploy
+# ตอนนี้ทุกอย่างอยู่ในสายเดียวด้วย needs: ⇒ เทสต์แดง = ไม่มีอะไรออกไปถึง production
+#
+# deploy.yml ถูกลบทิ้ง — ไม่มี self-hosted runner บนเครื่อง server อีกต่อไป
+# Portainer เป็นคน pull เอง โดยดูจาก commit ใน home-server-deploy (polling)
+
 name: CI
 
 on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*']          # ติด tag v1.2.0 → ได้ image tag 1.2.0 เพิ่ม (ไม่ deploy)
 
 jobs:
+  # ─────────────────────────────────────────────────────────────
+  # ทดสอบ — ส่วนนี้เฉพาะของ OmniDiagram ไม่ได้แชร์กับโปรเจกต์อื่น
+  # ─────────────────────────────────────────────────────────────
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -83,3 +96,130 @@ jobs:
           java-version: 21
           cache: maven
       - run: ./mvnw -B verify
+
+  # ─────────────────────────────────────────────────────────────
+  # build + push ขึ้น GHCR — รันเมื่อเทสต์ผ่านครบเท่านั้น
+  # ─────────────────────────────────────────────────────────────
+  release:
+    needs: [frontend, backend]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+    strategy:
+      matrix:
+        include:
+          - name: frontend
+            context: ./frontend
+            image: ghcr.io/naphatnu/omnidiagram-frontend
+          - name: backend
+            context: ./backend
+            image: ghcr.io/naphatnu/omnidiagram-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          # ไม่มี latest โดยตั้งใจ — latest คือต้นเหตุของคำถาม "ตอนนี้รันเวอร์ชันไหน"
+          # sha-xxxxxxx  = ทุก build บน main  ← ตัวที่ deploy จริง
+          # X.Y.Z        = เฉพาะตอน push git tag vX.Y.Z  ← ป้ายให้คนอ่านรู้เรื่อง
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      # ค่านี้ต้องตรงกับที่ metadata-action สร้าง — คำนวณเองเพื่อส่งต่อให้ job ถัดไป
+      - id: tag
+        run: echo "value=sha-$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────────────────────
+  # บอก deploy repo ว่าให้ใช้ tag ไหน — Portainer จะเห็นเองจาก polling
+  # ─────────────────────────────────────────────────────────────
+  bump-deploy-repo:
+    needs: release
+    # deploy เฉพาะ push เข้า main — push git tag แค่สร้าง image ไว้ ไม่ deploy เอง
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    # environment นี้คือสิ่งที่กันไม่ให้ใครก็ได้เอา DEPLOY_REPO_TOKEN ไปใช้:
+    #   - secret เก็บอยู่ใน environment ไม่ใช่ repo secret
+    #   - GitHub บังคับเองว่า environment นี้ใช้ได้เฉพาะ ref = main
+    #     ตอน pull_request ค่า GITHUB_REF คือ refs/pull/N/merge ⇒ ไม่ match ⇒ ไม่ได้ secret
+    #   - แก้ไฟล์ workflow นี้ยังไงก็ข้ามไม่ได้ เพราะบังคับที่ฝั่ง GitHub ไม่ใช่ที่ไฟล์
+    environment: production
+
+    # กัน 2 push ติดๆ กันเขียน deploy repo ชนกัน — ไม่ cancel ตัวก่อนหน้า
+    # เพราะแต่ละตัวต้องเขียน tag ของตัวเองให้ครบ
+    concurrency:
+      group: bump-deploy-repo
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: Checkout deploy repo
+        uses: actions/checkout@v4
+        with:
+          repository: NaphatNu/home-server-deploy
+          token: ${{ secrets.DEPLOY_REPO_TOKEN }}
+          ref: main
+          path: deploy
+
+      - name: Update tag and routing config
+        working-directory: deploy
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          f=stacks/omnidiagram/.env
+
+          grep -q '^IMAGE_TAG=' "$f" || { echo "ไม่พบบรรทัด IMAGE_TAG= ใน $f" >&2; exit 1; }
+          sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${TAG}|" "$f"
+
+          # Caddyfile มีเจ้าของเดียวคือ app repo (routing rule เป็นส่วนหนึ่งของสัญญาของแอป
+          # เช่น บล็อก /api/internal, basic auth หน้า /dashboard) — ก๊อปมาพร้อมกันในคอมมิตเดียว
+          # ⇒ routing กับเวอร์ชัน image เปลี่ยนพร้อมกันเสมอ ไม่มีทาง drift
+          cp ../app/caddy/Caddyfile stacks/omnidiagram/caddy/Caddyfile
+
+          git diff --quiet && { echo "ไม่มีอะไรเปลี่ยน (tag $TAG) — ไม่ต้อง commit"; exit 0; }
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add stacks/omnidiagram
+          git commit -m "omnidiagram: ${TAG}
+
+          จาก ${{ github.repository }}@${{ github.sha }}
+          run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # repo นี้รับ commit จากหลายโปรเจกต์ — rebase กันชนกับ bump ของแอปอื่น
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin main && exit 0
+            echo "push ไม่สำเร็จ ลองใหม่ครั้งที่ $i"
+            sleep 5
+          done
+          echo "push ไม่สำเร็จหลังลอง 3 ครั้ง" >&2
+          exit 1
